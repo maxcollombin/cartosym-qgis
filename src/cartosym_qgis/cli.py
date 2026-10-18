@@ -38,10 +38,12 @@ def main(argv: list[str] | None = None) -> int:
         sp.add_argument("--strict", action="store_true", help="fail if anything is dropped")
         sp.add_argument("--casing-width", choices=["total", "extra"], default="total")
         sp.add_argument("--casing-pass", choices=["all-first", "with-feature"], default="all-first")
+        sp.add_argument("--hatch-angle", choices=["clockwise", "counter-clockwise"], default="clockwise")
+        sp.add_argument("--dash-units", choices=["px", "stroke-width"], default="px")
     args = p.parse_args(argv)
 
     style = load_style(args.style)
-    options = Options(args.casing_width, args.casing_pass)
+    options = Options(args.casing_width, args.casing_pass, args.hatch_angle, args.dash_units)
     with qgis_app():
         if args.command == "qml":
             renderer, report = build_renderer(style, args.geometry, args.layer, options)

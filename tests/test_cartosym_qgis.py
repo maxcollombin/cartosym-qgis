@@ -144,3 +144,33 @@ def test_assumption_is_reported_separately():
     style = {"stylingRules": [{"symbolizer": {"stroke": {"dashPattern": [2, 1]}}}]}
     _, report = build_renderer(style, "line")
     assert report.assumed and not report.dropped
+
+
+def _hatch_layer(hatch, options=None):
+    from cartosym_qgis.symbols import Options
+    style = {"stylingRules": [{"symbolizer": {"fill": {"color": "red", "hatch": hatch}}}]}
+    renderer, _ = build_renderer(style, "polygon", options=options or Options())
+    return renderer.rootRule().children()[0].symbol().symbolLayer(0)
+
+
+def test_hatch_values_and_defaults():
+    layer = _hatch_layer({"width": {"px": 2}, "angle": 0, "distance": {"px": 12}})
+    assert (layer.distance(), layer.subSymbol().width(), layer.lineAngle()) == (12.0, 2.0, 0.0)
+    default = _hatch_layer({})  # 1 px wide, 45 degrees, 10 px apart
+    assert (default.distance(), default.subSymbol().width()) == (10.0, 1.0)
+    assert default.lineAngle() == -45.0  # clockwise, QGIS turns counter-clockwise
+
+
+def test_hatch_angle_direction_option():
+    from cartosym_qgis.symbols import Options
+    layer = _hatch_layer({"angle": 30}, Options(hatch_angle="counter-clockwise"))
+    assert layer.lineAngle() == 30.0
+
+
+def test_dash_units_option():
+    from cartosym_qgis.symbols import Options
+    style = {"stylingRules": [{"symbolizer": {"stroke": {"width": {"px": 3}, "dashPattern": [2, 1]}}}]}
+    for units, vector in (("px", [2.0, 1.0]), ("stroke-width", [6.0, 3.0])):
+        renderer, _ = build_renderer(style, "line", options=Options(dash_units=units))
+        layer = renderer.rootRule().children()[0].symbol().symbolLayer(0)
+        assert list(layer.customDashVector()) == vector

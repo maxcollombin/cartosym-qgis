@@ -8,6 +8,7 @@ from typing import Any
 from qgis.core import (
     Qgis,
     QgsFillSymbol,
+    QgsLinePatternFillSymbolLayer,
     QgsLineSymbol,
     QgsMarkerSymbol,
     QgsSimpleFillSymbolLayer,
@@ -21,7 +22,7 @@ from qgis.PyQt.QtCore import Qt
 from .units import Unsupported, color, length
 
 POLYGON, LINE, POINT = 2, 1, 0
-_NOTES = ("pattern", "hatch", "dotpattern", "stipple")
+_NOTES = ("pattern", "dotpattern", "stipple")
 
 
 @dataclass(frozen=True)
@@ -32,11 +33,14 @@ class Options:
     ``extra`` (it extends that far beyond each side of the stroke).
     ``casing_pass``: ``all-first`` (every casing is drawn before any stroke, so
     crossings merge) or ``with-feature`` (each feature's casing is drawn with
-    its own stroke).
+    its own stroke). ``hatch_angle``: the direction a hatch angle turns from the
+    x axis. ``dash_units``: the unit of ``dashPattern`` values.
     """
 
     casing_width: str = "total"
     casing_pass: str = "all-first"
+    hatch_angle: str = "clockwise"  # or "counter-clockwise", from the x axis
+    dash_units: str = "px"  # or "stroke-width": dashPattern values are multiples of the width
 
 
 def build_symbol(
@@ -80,7 +84,10 @@ def _polygon_layers(sym: dict[str, Any], notes: list[str], options: Options) -> 
     if not fill and not stroke:
         return []
     layer = QgsSimpleFillSymbolLayer()
-    if fill and "color" in fill:
+    hatch = (fill or {}).get("hatch")
+    if hatch is not None:
+        layer = _hatch_layer(fill, hatch, notes, options)
+    elif fill and "color" in fill:
         try:
             layer.setFillColor(color(fill["color"], fill.get("opacity")))
         except Unsupported as exc:
@@ -90,7 +97,8 @@ def _polygon_layers(sym: dict[str, Any], notes: list[str], options: Options) -> 
         layer.setBrushStyle(Qt.NoBrush)
     _note_unsupported(fill, "fill", notes)
     if not stroke:
-        layer.setStrokeStyle(Qt.NoPen)
+        if hatch is None:
+            layer.setStrokeStyle(Qt.NoPen)
         return [layer]
 
     _note_unsupported(stroke, "stroke", notes)
@@ -98,13 +106,14 @@ def _polygon_layers(sym: dict[str, Any], notes: list[str], options: Options) -> 
     main = _outline(stroke, stroke.get("color", "black"), width, unit, notes)
     casing = _casing_outline(stroke, width, unit, notes, options)
     center = stroke.get("centerLine") or stroke.get("center")
-    if not casing and not center:  # one layer: fill and outline together
+    if not casing and not center and hatch is None:  # fill and outline together
         layer.setStrokeColor(main.strokeColor())
         layer.setStrokeWidth(width)
         layer.setStrokeWidthUnit(unit)
         layer.setPenJoinStyle(main.penJoinStyle())
         return [layer]
-    layer.setStrokeStyle(Qt.NoPen)  # fill alone, the outlines are layers of their own
+    if hatch is None:
+        layer.setStrokeStyle(Qt.NoPen)  # fill alone, the outlines are layers of their own
     layers = [layer]
     if casing:
         layers.append(casing)
@@ -112,6 +121,41 @@ def _polygon_layers(sym: dict[str, Any], notes: list[str], options: Options) -> 
     if center:
         layers.append(_styling_outline(center, stroke, notes, "stroke.center"))
     return layers
+
+
+def _hatch_layer(fill, hatch, notes, options) -> QgsLinePatternFillSymbolLayer:
+    """Parallel lines; the draft's defaults are 1 px wide, 45 degrees, 10 px apart."""
+    layer = QgsLinePatternFillSymbolLayer()
+    width, w_unit = _length_or(hatch.get("width"), 1, notes, "hatch.width")
+    distance, d_unit = _length_or(hatch.get("distance"), 10, notes, "hatch.distance")
+    angle = hatch.get("angle", 45)
+    if not isinstance(angle, (int, float)):
+        notes.append(f"hatch.angle {angle!r} (expression)")
+        angle = 45
+    layer.setDistance(distance)
+    layer.setDistanceUnit(d_unit)
+    layer.setLineWidth(width)
+    layer.setLineWidthUnit(w_unit)
+    # QGIS draws the pattern line from the sub-symbol: its width must be set too
+    layer.subSymbol().setWidth(width)
+    layer.subSymbol().setOutputUnit(w_unit)
+    # QGIS turns counter-clockwise from the x axis
+    layer.setLineAngle(float(angle) if options.hatch_angle == "counter-clockwise" else -float(angle))
+    try:
+        layer.subSymbol().setColor(color(fill.get("color", "black"), fill.get("opacity")))
+    except Unsupported as exc:
+        notes.append(f"fill.color: {exc}")
+    return layer
+
+
+def _length_or(value, default, notes, name) -> tuple[float, Any]:
+    if value is None:
+        return float(default), Qgis.RenderUnit.Pixels
+    try:
+        return length(value)
+    except Unsupported as exc:
+        notes.append(f"{name}: {exc}")
+        return float(default), Qgis.RenderUnit.Pixels
 
 
 def _outline(stroke, col, width, unit, notes) -> QgsSimpleFillSymbolLayer:
@@ -181,9 +225,13 @@ def _line_layers(sym: dict[str, Any], notes: list[str], options: Options) -> lis
     dash = stroke.get("dashPattern")
     if isinstance(dash, list) and dash:
         main.setUseCustomDashPattern(True)
-        main.setCustomDashVector([float(d) for d in dash])
-        main.setCustomDashPatternUnit(unit)
-        notes.append("~stroke.dashPattern unit read as the stroke's (the draft leaves it open)")
+        if options.dash_units == "stroke-width":
+            main.setCustomDashVector([float(d) * width for d in dash])
+            main.setCustomDashPatternUnit(unit)
+        else:
+            main.setCustomDashVector([float(d) for d in dash])
+            main.setCustomDashPatternUnit(Qgis.RenderUnit.Pixels)
+        notes.append(f"~stroke.dashPattern values read as {options.dash_units} (the draft leaves it open)")
     _note_unsupported(stroke, "stroke", notes)
     layers = [main]
     casing = stroke.get("casing")
