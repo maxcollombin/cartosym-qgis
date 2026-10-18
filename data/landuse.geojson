@@ -1,0 +1,5 @@
+{"type":"FeatureCollection","crs":{"type":"name","properties":{"name":"urn:ogc:def:crs:EPSG::25833"}},"features":[
+{"type":"Feature","properties":{"FunctionCode":"parking"},"geometry":{"type":"Polygon","coordinates":[[[0,0],[400,0],[400,300],[0,300],[0,0]]]}},
+{"type":"Feature","properties":{"FunctionCode":"park"},"geometry":{"type":"Polygon","coordinates":[[[450,0],[900,0],[900,300],[450,300],[450,0]]]}},
+{"type":"Feature","properties":{"FunctionCode":"commercial"},"geometry":{"type":"Polygon","coordinates":[[[0,350],[400,350],[400,650],[0,650],[0,350]]]}},
+{"type":"Feature","properties":{"FunctionCode":"other"},"geometry":{"type":"Polygon","coordinates":[[[450,350],[900,350],[900,650],[450,650],[450,350]]]}}]}

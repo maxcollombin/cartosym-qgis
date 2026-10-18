@@ -1,0 +1,21 @@
+[project]
+name = "cartosym-qgis"
+version = "0.0.1"
+description = "CartoSym to QGIS (QML) writer and headless renderer, built on pycartosym"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = ["pycartosym>=0.5.0"]  # PyQGIS comes from the system Python, not PyPI
+
+[project.scripts]
+cartosym-qgis = "cartosym_qgis.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
