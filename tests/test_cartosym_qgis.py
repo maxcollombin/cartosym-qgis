@@ -175,3 +175,45 @@ def test_dash_units_option():
         renderer, _ = build_renderer(style, "line", options=Options(dash_units=units))
         layer = renderer.rootRule().children()[0].symbol().symbolLayer(0)
         assert list(layer.customDashVector()) == vector
+
+
+LABEL_STYLE = {"stylingRules": [{"symbolizer": {"label": {"elements": [{
+    "type": "Text", "text": {"property": "name"},
+    "font": {"face": "DejaVu Sans", "size": 14, "bold": True, "color": "black",
+             "outline": {"size": 3, "opacity": 0.75, "color": "white"}},
+}]}}}]}
+
+
+def _label(options=None):
+    from cartosym_qgis.renderer import build
+    from cartosym_qgis.symbols import Options
+    renderer, labeling, report = build(LABEL_STYLE, "polygon", options=options or Options())
+    settings = labeling.rootRule().children()[0].settings()
+    return settings, (renderer, labeling)
+
+
+def test_text_label_with_font_outline():
+    settings, _keep = _label()
+    assert settings.fieldName == "name" and not settings.isExpression
+    fmt = settings.format()
+    assert (fmt.size(), fmt.font().bold()) == (14.0, True)
+    buffer = fmt.buffer()
+    assert buffer.enabled() and buffer.color().name() == "#ffffff"
+    assert buffer.opacity() == 0.75
+
+
+def test_font_outline_extent_option():
+    from cartosym_qgis.symbols import Options
+    outward, _k1 = _label()
+    centered, _k2 = _label(Options(outline_extent="centered"))
+    # QGIS draws a stroke centred on the contour: half of it shows outside
+    assert outward.format().buffer().size() == 6.0
+    assert centered.format().buffer().size() == 3.0
+
+
+def test_label_in_qml():
+    from cartosym_qgis.renderer import build
+    renderer, labeling, _ = build(LABEL_STYLE, "polygon")
+    qml = to_qml(renderer, "polygon", labeling=labeling)
+    assert '<labeling type="rule-based">' in qml
+    assert 'bufferDraw="1"' in qml and 'bufferSizeUnits="Pixel"' in qml

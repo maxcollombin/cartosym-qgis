@@ -32,14 +32,16 @@ Where the draft leaves a behaviour open, the choice is an option:
 `--casing-width total|extra` (is the casing width the whole band, or the part
 beyond each side of the stroke) and `--casing-pass all-first|with-feature`
 (every casing before any stroke, or each feature's casing with its own stroke).
-`--hatch-angle clockwise|counter-clockwise` and `--dash-units px|stroke-width`.
+`--hatch-angle clockwise|counter-clockwise`, `--dash-units px|stroke-width`,
+`--outline-unit px|pt` and `--outline-extent outward|centered` (QGIS draws a font
+outline as a stroke centred on the glyph contour, so `outward` doubles the size).
 Other assumptions are listed on stderr as `assumed:`.
 
 ## Supported so far
 
 Polygon fill and stroke (colour, opacity, width, join), line stroke (cap, join,
-dash), casing and centre line, hatches, `Dot` markers, `viz.sd`, property comparisons, `like`, `in`, `between`,
+dash), casing and centre line, hatches, `Text` labels with font outline (`label.elements`), `Dot` markers, `viz.sd`, property comparisons, `like`, `in`, `between`,
 `px`/`mm`/`cm`/`pt`/`in`/`m`/`ft`.
 
 Not yet: stipples, dot patterns, pattern fills and
-strokes, Text and Image markers, labels, coverages, `viz.pass`, time conditions.
+strokes, Image markers, `Text` position and alignment, coverages, `viz.pass`, time conditions.

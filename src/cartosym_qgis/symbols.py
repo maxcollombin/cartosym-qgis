@@ -34,13 +34,18 @@ class Options:
     ``casing_pass``: ``all-first`` (every casing is drawn before any stroke, so
     crossings merge) or ``with-feature`` (each feature's casing is drawn with
     its own stroke). ``hatch_angle``: the direction a hatch angle turns from the
-    x axis. ``dash_units``: the unit of ``dashPattern`` values.
+    x axis. ``dash_units``: the unit of ``dashPattern`` values. ``outline_unit``: the
+    unit of a font outline's ``size``. ``outline_extent``: whether ``size`` is how
+    far the outline extends beyond the glyph (``outward``, as the draft words
+    it) or the width of a stroke centred on the glyph contour (``centered``).
     """
 
     casing_width: str = "total"
     casing_pass: str = "all-first"
     hatch_angle: str = "clockwise"  # or "counter-clockwise", from the x axis
     dash_units: str = "px"  # or "stroke-width": dashPattern values are multiples of the width
+    outline_unit: str = "px"  # unit of a font outline's size; "pt" matches Font.size
+    outline_extent: str = "outward"  # or "centered": size is the width of a stroke on the contour
 
 
 def build_symbol(

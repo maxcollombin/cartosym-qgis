@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from .renderer import build_renderer, load_style, to_qml
+from .renderer import build, load_style, to_qml
 from .symbols import Options
 from .render import qgis_app, render_png
 
@@ -40,15 +40,17 @@ def main(argv: list[str] | None = None) -> int:
         sp.add_argument("--casing-pass", choices=["all-first", "with-feature"], default="all-first")
         sp.add_argument("--hatch-angle", choices=["clockwise", "counter-clockwise"], default="clockwise")
         sp.add_argument("--dash-units", choices=["px", "stroke-width"], default="px")
+        sp.add_argument("--outline-unit", choices=["px", "pt"], default="px")
+        sp.add_argument("--outline-extent", choices=["outward", "centered"], default="outward")
     args = p.parse_args(argv)
 
     style = load_style(args.style)
-    options = Options(args.casing_width, args.casing_pass, args.hatch_angle, args.dash_units)
+    options = Options(args.casing_width, args.casing_pass, args.hatch_angle, args.dash_units, args.outline_unit, args.outline_extent)
     with qgis_app():
         if args.command == "qml":
-            renderer, report = build_renderer(style, args.geometry, args.layer, options)
+            renderer, labeling, report = build(style, args.geometry, args.layer, options)
             with open(args.output, "w", encoding="utf-8") as fh:
-                fh.write(to_qml(renderer, args.geometry))
+                fh.write(to_qml(renderer, args.geometry, labeling=labeling))
         else:
             report = render_png(
                 style, args.data, args.output, args.layer, args.size, args.scale, options

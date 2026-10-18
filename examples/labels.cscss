@@ -1,0 +1,6 @@
+Landuse
+{
+   fill: { color: #dde8cc; opacity: 0.6 };
+   stroke: { color: gray; width: 1 px };
+   label: { elements: [ Text { text: FunctionCode; font: { face: 'DejaVu Sans'; size: 14; bold: true; color: #1a3d1a; outline: { size: 3; opacity: 0.9; color: white } } } ] };
+}

@@ -8,9 +8,10 @@ from itertools import product
 from pathlib import Path
 from typing import Any
 
-from qgis.core import QgsRuleBasedRenderer
+from qgis.core import QgsRuleBasedLabeling, QgsRuleBasedRenderer
 
 from . import expressions
+from .labels import label_settings
 from .symbols import LINE, POINT, POLYGON, Options, build_symbol
 from .units import Unsupported
 
@@ -83,7 +84,18 @@ def build_renderer(
     layer_id: str | None = None,
     options: Options = Options(),
 ) -> tuple[QgsRuleBasedRenderer, Report]:
-    """Return ``(renderer, report)`` for the rules that apply to *geometry*.
+    """Like :func:`build`, without the labeling."""
+    renderer, _labeling, report = build(style, geometry, layer_id, options)
+    return renderer, report
+
+
+def build(
+    style: dict[str, Any],
+    geometry: str,
+    layer_id: str | None = None,
+    options: Options = Options(),
+) -> tuple[QgsRuleBasedRenderer, QgsRuleBasedLabeling, Report]:
+    """Return ``(renderer, labeling, report)`` for the rules that apply to *geometry*.
 
     CartoSym merges every matching rule in document order, so overlapping
     sibling rules combine. QGIS rules do not, so the conditions are split
@@ -120,6 +132,7 @@ def build_renderer(
         raise Unsupported(f"style too intricate for QGIS rules ({n_cells} condition cells)")
 
     root = QgsRuleBasedRenderer.Rule(None)
+    label_root = QgsRuleBasedLabeling.Rule(None)
     props = list(groups)
     for states in product(*(range(len(groups[p]) + 1) for p in props)):
         chosen = {p: (groups[p][i] if i < len(groups[p]) else None) for p, i in zip(props, states)}
@@ -141,11 +154,18 @@ def build_renderer(
                 if merged.get("visibility", True) is False:
                     continue
                 symbol = build_symbol(merged, dimension, notes, options)
-                if symbol is None:
-                    continue
+                terms = _cell_filter(chosen, groups, truth)
+                scale = (int(low), 0 if high == float("inf") else int(high))
+                for settings in label_settings(merged.get("label") or {}, dimension, notes, options):
+                    label_root.appendChild(
+                        QgsRuleBasedLabeling.Rule(
+                            settings, scale[1], scale[0], " AND ".join(terms)
+                        )
+                    )
                 for note in notes:
                     report.note(active[-1].name, note)
-                terms = _cell_filter(chosen, groups, truth)
+                if symbol is None:
+                    continue
                 root.appendChild(
                     QgsRuleBasedRenderer.Rule(
                         symbol,
@@ -160,7 +180,7 @@ def build_renderer(
     renderer = QgsRuleBasedRenderer(root)
     # Symbol levels draw layer 0 of every feature, then layer 1, ...: all casings first.
     renderer.setUsingSymbolLevels(options.casing_pass == "all-first")
-    return renderer, report
+    return renderer, QgsRuleBasedLabeling(label_root), report
 
 
 def _cell_filter(chosen: dict[str, Any], groups: dict[str, list[Any]], truth: dict[str, bool]) -> list[str]:
@@ -212,7 +232,12 @@ def _walk(
             _walk(child, chain, dimension, layer_id, report, nodes)
 
 
-def to_qml(renderer: QgsRuleBasedRenderer, geometry: str, crs: str = "EPSG:4326") -> str:
+def to_qml(
+    renderer: QgsRuleBasedRenderer,
+    geometry: str,
+    crs: str = "EPSG:4326",
+    labeling: QgsRuleBasedLabeling | None = None,
+) -> str:
     """Serialise *renderer* as QML, through a throw-away memory layer."""
     from qgis.core import QgsReadWriteContext, QgsVectorLayer
     from qgis.PyQt.QtXml import QDomDocument
@@ -220,6 +245,9 @@ def to_qml(renderer: QgsRuleBasedRenderer, geometry: str, crs: str = "EPSG:4326"
     wkb = {"point": "Point", "line": "LineString", "polygon": "Polygon"}[geometry]
     layer = QgsVectorLayer(f"{wkb}?crs={crs}", "style", "memory")
     layer.setRenderer(renderer.clone())
+    if labeling is not None:
+        layer.setLabeling(labeling.clone())
+        layer.setLabelsEnabled(True)
     doc = QDomDocument()
     layer.exportNamedStyle(doc, QgsReadWriteContext())
     return doc.toString(2)

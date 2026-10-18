@@ -39,15 +39,19 @@ def render_png(
     from qgis.PyQt.QtCore import QSize
     from qgis.PyQt.QtGui import QColor
 
-    from .renderer import build_renderer
+    from .renderer import build
     from .symbols import Options
 
     layer = QgsVectorLayer(str(data), layer_id or Path(data).stem, "ogr")
     if not layer.isValid():
         raise ValueError(f"cannot open {data}")
     geometry = _GEOMETRY[layer.geometryType().value]
-    renderer, report = build_renderer(style, geometry, layer_id or layer.name(), options or Options())
+    renderer, labeling, report = build(
+        style, geometry, layer_id or layer.name(), options or Options()
+    )
     layer.setRenderer(renderer)
+    layer.setLabeling(labeling)
+    layer.setLabelsEnabled(True)
 
     settings = QgsMapSettings()
     settings.setLayers([layer])
