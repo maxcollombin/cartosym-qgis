@@ -150,20 +150,21 @@ def _hatch_layer(hatch, options=None):
     from cartosym_qgis.symbols import Options
     style = {"stylingRules": [{"symbolizer": {"fill": {"color": "red", "hatch": hatch}}}]}
     renderer, _ = build_renderer(style, "polygon", options=options or Options())
-    return renderer.rootRule().children()[0].symbol().symbolLayer(0)
+    # the layer belongs to the renderer: keep it alive for the caller
+    return renderer.rootRule().children()[0].symbol().symbolLayer(0), renderer
 
 
 def test_hatch_values_and_defaults():
-    layer = _hatch_layer({"width": {"px": 2}, "angle": 0, "distance": {"px": 12}})
+    layer, _keep = _hatch_layer({"width": {"px": 2}, "angle": 0, "distance": {"px": 12}})
     assert (layer.distance(), layer.subSymbol().width(), layer.lineAngle()) == (12.0, 2.0, 0.0)
-    default = _hatch_layer({})  # 1 px wide, 45 degrees, 10 px apart
+    default, _keep2 = _hatch_layer({})  # 1 px wide, 45 degrees, 10 px apart
     assert (default.distance(), default.subSymbol().width()) == (10.0, 1.0)
     assert default.lineAngle() == -45.0  # clockwise, QGIS turns counter-clockwise
 
 
 def test_hatch_angle_direction_option():
     from cartosym_qgis.symbols import Options
-    layer = _hatch_layer({"angle": 30}, Options(hatch_angle="counter-clockwise"))
+    layer, _keep = _hatch_layer({"angle": 30}, Options(hatch_angle="counter-clockwise"))
     assert layer.lineAngle() == 30.0
 
 
