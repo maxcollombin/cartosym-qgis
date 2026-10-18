@@ -32,6 +32,7 @@ def render_png(
     layer_id: str | None = None,
     size: int = 600,
     scale: float | None = None,
+    options=None,
 ):
     """Render *data* with *style* to a PNG; return the build report."""
     from qgis.core import QgsMapRendererParallelJob, QgsMapSettings, QgsVectorLayer
@@ -39,12 +40,13 @@ def render_png(
     from qgis.PyQt.QtGui import QColor
 
     from .renderer import build_renderer
+    from .symbols import Options
 
     layer = QgsVectorLayer(str(data), layer_id or Path(data).stem, "ogr")
     if not layer.isValid():
         raise ValueError(f"cannot open {data}")
     geometry = _GEOMETRY[layer.geometryType().value]
-    renderer, report = build_renderer(style, geometry, layer_id or layer.name())
+    renderer, report = build_renderer(style, geometry, layer_id or layer.name(), options or Options())
     layer.setRenderer(renderer)
 
     settings = QgsMapSettings()

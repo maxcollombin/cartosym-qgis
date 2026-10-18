@@ -1,0 +1,4 @@
+{"type":"FeatureCollection","crs":{"type":"name","properties":{"name":"urn:ogc:def:crs:EPSG::25833"}},"features":[
+{"type":"Feature","properties":{"class":"mainroads"},"geometry":{"type":"LineString","coordinates":[[0,100],[300,100],[600,160]]}},
+{"type":"Feature","properties":{"class":"mainroads"},"geometry":{"type":"LineString","coordinates":[[300,0],[300,100],[330,300]]}},
+{"type":"Feature","properties":{"class":"railways"},"geometry":{"type":"LineString","coordinates":[[0,250],[200,230],[600,260]]}}]}

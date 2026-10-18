@@ -72,12 +72,9 @@ def test_overlapping_rules_are_merged_in_each_cell():
 
 
 def test_unsupported_is_reported_not_silent():
-    style = {"stylingRules": [{"symbolizer": {
-        "fill": {"color": "red"},
-        "stroke": {"color": "blue", "casing": {"color": "white"}},
-    }}]}
+    style = {"stylingRules": [{"symbolizer": {"fill": {"color": "red", "stipple": {"size": 2}}}}]}
     _, report = build_renderer(style, "polygon", "Landuse")
-    assert any("casing" in d for d in report.dropped)
+    assert any("stipple" in d for d in report.dropped)
 
 
 def test_other_layer_and_geometry_are_skipped():
@@ -102,3 +99,48 @@ def test_render_colours(tmp_path):
     pixels = [QColor(image.pixel(x, y)) for x in range(90, 110) for y in range(90, 110)]
     assert any(c.green() > c.red() + 20 for c in pixels)
     assert any(abs(c.green() - c.red()) < 5 and c.red() < 250 for c in pixels)
+
+
+ROADS = {"stylingRules": [{"symbolizer": {"stroke": {
+    "color": "white", "width": {"px": 4},
+    "casing": {"color": "black", "width": {"px": 2}},
+    "centerLine": {"color": "red", "width": {"px": 1}},
+}}}]}
+
+
+def _layers(options=None):
+    from cartosym_qgis.symbols import Options
+    renderer, report = build_renderer(ROADS, "line", options=options or Options())
+    symbol = renderer.rootRule().children()[0].symbol()
+    return renderer, [(l.width(), l.color().name()) for l in symbol.symbolLayers()]
+
+
+def test_casing_below_and_center_above():
+    _, layers = _layers()
+    assert layers == [(2.0, "#000000"), (4.0, "#ffffff"), (1.0, "#ff0000")]
+
+
+def test_casing_width_extra_extends_beyond_each_side():
+    from cartosym_qgis.symbols import Options
+    _, layers = _layers(Options(casing_width="extra"))
+    assert layers[0] == (8.0, "#000000")  # 4 + 2 * 2
+
+
+def test_casing_pass_selects_symbol_levels():
+    from cartosym_qgis.symbols import Options
+    assert _layers()[0].usingSymbolLevels()
+    assert not _layers(Options(casing_pass="with-feature"))[0].usingSymbolLevels()
+
+
+def test_rendering_passes_only_for_all_first():
+    from cartosym_qgis.symbols import Options
+    for options, passes in ((Options(), [0, 1, 2]), (Options(casing_pass="with-feature"), [0, 0, 0])):
+        renderer, _ = build_renderer(ROADS, "line", options=options)
+        symbol = renderer.rootRule().children()[0].symbol()
+        assert [l.renderingPass() for l in symbol.symbolLayers()] == passes
+
+
+def test_assumption_is_reported_separately():
+    style = {"stylingRules": [{"symbolizer": {"stroke": {"dashPattern": [2, 1]}}}]}
+    _, report = build_renderer(style, "line")
+    assert report.assumed and not report.dropped

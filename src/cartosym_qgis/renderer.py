@@ -11,7 +11,7 @@ from typing import Any
 from qgis.core import QgsRuleBasedRenderer
 
 from . import expressions
-from .symbols import LINE, POINT, POLYGON, build_symbol
+from .symbols import LINE, POINT, POLYGON, Options, build_symbol
 from .units import Unsupported
 
 _DIMENSION = {"point": POINT, "line": LINE, "polygon": POLYGON}
@@ -22,9 +22,17 @@ class Report:
     """What could not be carried over, so nothing is lost silently."""
 
     dropped: list[str] = field(default_factory=list)
+    assumed: list[str] = field(default_factory=list)  # a reading chosen where the draft is open
 
     def add(self, rule: str, what: str) -> None:
         self.dropped.append(f"{rule}: {what}")
+
+    def note(self, rule: str, note: str) -> None:
+        """Record a symbol-builder note: ``~`` marks an assumption, else a drop."""
+        if note.startswith("~"):
+            self.assumed.append(f"{rule}: {note[1:]}")
+        else:
+            self.add(rule, f"{note} not carried over")
 
 
 def load_style(path: str | Path) -> dict[str, Any]:
@@ -73,6 +81,7 @@ def build_renderer(
     style: dict[str, Any],
     geometry: str,
     layer_id: str | None = None,
+    options: Options = Options(),
 ) -> tuple[QgsRuleBasedRenderer, Report]:
     """Return ``(renderer, report)`` for the rules that apply to *geometry*.
 
@@ -131,11 +140,11 @@ def build_renderer(
                 notes: list[str] = []
                 if merged.get("visibility", True) is False:
                     continue
-                symbol = build_symbol(merged, dimension, notes)
+                symbol = build_symbol(merged, dimension, notes, options)
                 if symbol is None:
                     continue
                 for note in notes:
-                    report.add(active[-1].name, f"{note} not carried over")
+                    report.note(active[-1].name, note)
                 terms = _cell_filter(chosen, groups, truth)
                 root.appendChild(
                     QgsRuleBasedRenderer.Rule(
@@ -147,7 +156,11 @@ def build_renderer(
                     )
                 )
     report.dropped = list(dict.fromkeys(report.dropped))
-    return QgsRuleBasedRenderer(root), report
+    report.assumed = list(dict.fromkeys(report.assumed))
+    renderer = QgsRuleBasedRenderer(root)
+    # Symbol levels draw layer 0 of every feature, then layer 1, ...: all casings first.
+    renderer.setUsingSymbolLevels(options.casing_pass == "all-first")
+    return renderer, report
 
 
 def _cell_filter(chosen: dict[str, Any], groups: dict[str, list[Any]], truth: dict[str, bool]) -> list[str]:

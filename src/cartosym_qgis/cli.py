@@ -6,10 +6,13 @@ import argparse
 import sys
 
 from .renderer import build_renderer, load_style, to_qml
+from .symbols import Options
 from .render import qgis_app, render_png
 
 
 def _report(report, strict: bool) -> int:
+    for line in report.assumed:
+        print(f"assumed: {line}", file=sys.stderr)
     for line in report.dropped:
         print(f"not carried over: {line}", file=sys.stderr)
     return 1 if strict and report.dropped else 0
@@ -33,17 +36,20 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("-o", "--output", required=True)
     for sp in (q, r):
         sp.add_argument("--strict", action="store_true", help="fail if anything is dropped")
+        sp.add_argument("--casing-width", choices=["total", "extra"], default="total")
+        sp.add_argument("--casing-pass", choices=["all-first", "with-feature"], default="all-first")
     args = p.parse_args(argv)
 
     style = load_style(args.style)
+    options = Options(args.casing_width, args.casing_pass)
     with qgis_app():
         if args.command == "qml":
-            renderer, report = build_renderer(style, args.geometry, args.layer)
+            renderer, report = build_renderer(style, args.geometry, args.layer, options)
             with open(args.output, "w", encoding="utf-8") as fh:
                 fh.write(to_qml(renderer, args.geometry))
         else:
             report = render_png(
-                style, args.data, args.output, args.layer, args.size, args.scale
+                style, args.data, args.output, args.layer, args.size, args.scale, options
             )
     return _report(report, args.strict)
 

@@ -1,0 +1,11 @@
+Roads
+{
+   [class = 'mainroads']
+   {
+      stroke: { color: #ff9999; width: 8 px; cap: round; casing: { color: #ff0000; width: 10 px; }; };
+   }
+   [class = 'railways']
+   {
+      stroke: { color: #ffffff; width: 4 px; dashPattern: [6, 6]; casing: { color: #333333; width: 6 px; }; center: { color: #333333; width: 1 px }; };
+   }
+}
