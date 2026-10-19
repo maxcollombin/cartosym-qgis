@@ -382,7 +382,7 @@ def _pattern_stroke_layer(stroke, notes: list[str], options: Options):
     if symbol is None:
         return None
     layer = QgsMarkerLineSymbolLayer()
-    layer.setPlacement(Qgis.MarkerLinePlacement.Interval)
+    layer.setPlacements(Qgis.MarkerLinePlacements(Qgis.MarkerLinePlacement.Interval))
     layer.setRotateSymbols(True)
     for key, setter, unit_setter in (
         ("patternGap", layer.setInterval, layer.setIntervalUnit),
@@ -413,7 +413,7 @@ def _marker_layers(marker, dimension: int, notes: list[str], options: Options) -
         layer.setSubSymbol(symbol)
         return [layer]
     layer = QgsMarkerLineSymbolLayer()
-    layer.setPlacement(Qgis.MarkerLinePlacement.Vertex)
+    layer.setPlacements(Qgis.MarkerLinePlacements(Qgis.MarkerLinePlacement.Vertex))
     layer.setRotateSymbols(False)  # a marker faces the viewer, it does not follow the line
     layer.setSubSymbol(symbol)
     return [layer]

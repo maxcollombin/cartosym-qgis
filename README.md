@@ -14,6 +14,8 @@ python3 -m venv --system-site-packages .venv
 .venv/bin/pip install -e .
 .venv/bin/cartosym-qgis qml style.cscss --geometry polygon --layer Landuse -o landuse.qml
 .venv/bin/cartosym-qgis render style.cscss data/landuse.geojson --layer Landuse --scale 5000 -o out.png
+# a render kit of github.com/henrik716/cartosym-draft-check (style, data and view.json)
+.venv/bin/cartosym-qgis kit path/to/kit --style style-variant-4.cs.json -o out.png
 ```
 
 Whatever QGIS cannot express is listed on stderr (`--strict` makes it an error),
@@ -42,6 +44,14 @@ Other assumptions are listed on stderr as `assumed:`.
 Polygon fill and stroke (colour, opacity, width, join), line stroke (cap, join,
 dash), casing and centre line, hatches, dot patterns, stipples, `Image` and `Dot` markers (on points, at a polygon's centroid, at a line's vertices) with `hotSpot` and `position`, an `Image` as fill pattern or repeated along a stroke (`pattern`, `patternGap`, `patternInitialGap`), `Text` labels with font outline (`label.elements`), `Dot` markers, `viz.sd`, property comparisons, `like`, `in`, `between`,
 `px`/`mm`/`cm`/`pt`/`in`/`m`/`ft`.
+
+Coverages (`kit` command, bands as `<layer>.<band>.asc`): `singleChannel` (a band or an
+expression over bands) with `colorMap`, `colorChannels`, `alphaChannel` with selectors on
+band values (`[SCL=8]`), `opacity`, and `hillShading` (GDAL's hillshade, with its `colorMap`
+and `opacityMap` on the 0..1 intensity). `colorMap` is interpolated linearly and clamped,
+`colorChannels` values are stretched to their min/max, the sun azimuth is read clockwise
+from north; all three are listed as `assumed`. `hillShading.factor` is not carried over: the
+draft does not say what it scales.
 
 Not yet: `Dot` and shapes as fill patterns, `tint`/`blackTint`/`alphaThreshold`, `Text` position and alignment, coverages, `viz.pass`, time conditions.
 

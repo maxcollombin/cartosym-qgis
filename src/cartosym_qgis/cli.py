@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .renderer import build, load_style, to_qml
 from .symbols import Options
+from .kit import render_kit
 from .render import qgis_app, render_png
 
 
@@ -35,7 +36,11 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--size", type=int, default=600)
     r.add_argument("--scale", type=float, help="scale denominator")
     r.add_argument("-o", "--output", required=True)
-    for sp in (q, r):
+    k = sub.add_parser("kit", help="render a draft-check render kit to PNG")
+    k.add_argument("directory")
+    k.add_argument("--style", help="style file (default: style.cs.json in the kit)")
+    k.add_argument("-o", "--output", required=True)
+    for sp in (q, r, k):
         sp.add_argument("--strict", action="store_true", help="fail if anything is dropped")
         sp.add_argument("--casing-width", choices=["total", "extra"], default="total")
         sp.add_argument("--casing-pass", choices=["all-first", "with-feature"], default="all-first")
@@ -45,7 +50,10 @@ def main(argv: list[str] | None = None) -> int:
         sp.add_argument("--outline-extent", choices=["outward", "centered"], default="outward")
     args = p.parse_args(argv)
 
-    style = load_style(args.style)
+    if args.command == "kit":
+        style_file = args.style or str(Path(args.directory) / "style.cs.json")
+        args.style = style_file
+    style = load_style(args.style) if args.command != "kit" else None
     options = Options(
         casing_width=args.casing_width,
         casing_pass=args.casing_pass,
@@ -56,7 +64,9 @@ def main(argv: list[str] | None = None) -> int:
         base_dir=Path(args.style).resolve().parent,
     )
     with qgis_app():
-        if args.command == "qml":
+        if args.command == "kit":
+            report = render_kit(args.directory, args.style, args.output, options)
+        elif args.command == "qml":
             renderer, labeling, report = build(style, args.geometry, args.layer, options)
             with open(args.output, "w", encoding="utf-8") as fh:
                 fh.write(to_qml(renderer, args.geometry, labeling=labeling))
