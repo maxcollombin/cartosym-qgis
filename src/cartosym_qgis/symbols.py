@@ -9,6 +9,8 @@ from qgis.core import (
     Qgis,
     QgsFillSymbol,
     QgsLinePatternFillSymbolLayer,
+    QgsPointPatternFillSymbolLayer,
+    QgsRandomMarkerFillSymbolLayer,
     QgsLineSymbol,
     QgsMarkerSymbol,
     QgsSimpleFillSymbolLayer,
@@ -22,7 +24,7 @@ from qgis.PyQt.QtCore import Qt
 from .units import Unsupported, color, length
 
 POLYGON, LINE, POINT = 2, 1, 0
-_NOTES = ("pattern", "dotpattern", "stipple")
+_NOTES = ("pattern",)
 
 
 @dataclass(frozen=True)
@@ -89,9 +91,9 @@ def _polygon_layers(sym: dict[str, Any], notes: list[str], options: Options) -> 
     if not fill and not stroke:
         return []
     layer = QgsSimpleFillSymbolLayer()
-    hatch = (fill or {}).get("hatch")
+    hatch = _pattern_layer(fill or {}, notes, options)
     if hatch is not None:
-        layer = _hatch_layer(fill, hatch, notes, options)
+        layer = hatch
     elif fill and "color" in fill:
         try:
             layer.setFillColor(color(fill["color"], fill.get("opacity")))
@@ -126,6 +128,68 @@ def _polygon_layers(sym: dict[str, Any], notes: list[str], options: Options) -> 
     if center:
         layers.append(_styling_outline(center, stroke, notes, "stroke.center"))
     return layers
+
+
+def _pattern_layer(fill, notes, options):
+    """The hatch, dot pattern or stipple layer of *fill*, if it has one."""
+    if fill.get("hatch") is not None:
+        return _hatch_layer(fill, fill["hatch"], notes, options)
+    if fill.get("dotpattern") is not None:
+        return _dot_pattern_layer(fill, fill["dotpattern"], notes)
+    if fill.get("stipple") is not None:
+        return _stipple_layer(fill, fill["stipple"], notes)
+    return None
+
+
+def _dot(fill, notes) -> QgsMarkerSymbol:
+    """The draft leaves dot size and colour open (#84): a 1 px square in the fill colour."""
+    marker = QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Shape.Square, 1.0)
+    marker.setSizeUnit(Qgis.RenderUnit.Pixels)
+    marker.setStrokeStyle(Qt.NoPen)
+    try:
+        marker.setColor(color(fill.get("color", "black"), fill.get("opacity")))
+    except Unsupported as exc:
+        notes.append(f"fill.color: {exc}")
+    notes.append("~dot size and colour read as 1 px in the fill colour (the draft leaves them open)")
+    return QgsMarkerSymbol([marker])
+
+
+def _dot_pattern_layer(fill, dotpattern, notes) -> QgsPointPatternFillSymbolLayer:
+    """A regular grid of dots; ``distance`` is one value, ``[h, v]`` or ``{horizontal, vertical}``."""
+    layer = QgsPointPatternFillSymbolLayer()
+    distance = dotpattern.get("distance", 10)
+    if isinstance(distance, list) and len(distance) == 2:
+        horizontal, vertical = distance
+    elif isinstance(distance, dict) and "horizontal" in distance:
+        horizontal, vertical = distance["horizontal"], distance.get("vertical", distance["horizontal"])
+    else:
+        horizontal = vertical = distance
+    (dx, ux), (dy, uy) = (_length_or(v, 10, notes, "dotpattern.distance") for v in (horizontal, vertical))
+    layer.setDistanceX(dx)
+    layer.setDistanceXUnit(ux)
+    layer.setDistanceY(dy)
+    layer.setDistanceYUnit(uy)
+    layer.setSubSymbol(_dot(fill, notes))
+    return layer
+
+
+_STIPPLE_AREA = 10000.0  # px²: the area the dot count is given for
+
+
+def _stipple_layer(fill, stipple, notes) -> QgsRandomMarkerFillSymbolLayer:
+    """Random dots covering ``ratio`` of the area (dots are 1 px², so count = ratio * area)."""
+    ratio = stipple.get("ratio", 0.5)
+    if not isinstance(ratio, (int, float)):
+        notes.append(f"stipple.ratio {ratio!r} (expression)")
+        ratio = 0.5
+    layer = QgsRandomMarkerFillSymbolLayer()
+    layer.setCountMethod(QgsRandomMarkerFillSymbolLayer.CountMethod.DensityBased)
+    layer.setPointCount(max(1, round(float(ratio) * _STIPPLE_AREA)))
+    layer.setDensityArea(_STIPPLE_AREA)
+    layer.setDensityAreaUnit(Qgis.RenderUnit.Pixels)
+    layer.setSeed(1)  # the same dots at every render
+    layer.setSubSymbol(_dot(fill, notes))
+    return layer
 
 
 def _hatch_layer(fill, hatch, notes, options) -> QgsLinePatternFillSymbolLayer:

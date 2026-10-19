@@ -40,8 +40,12 @@ Other assumptions are listed on stderr as `assumed:`.
 ## Supported so far
 
 Polygon fill and stroke (colour, opacity, width, join), line stroke (cap, join,
-dash), casing and centre line, hatches, `Text` labels with font outline (`label.elements`), `Dot` markers, `viz.sd`, property comparisons, `like`, `in`, `between`,
+dash), casing and centre line, hatches, dot patterns, stipples, `Text` labels with font outline (`label.elements`), `Dot` markers, `viz.sd`, property comparisons, `like`, `in`, `between`,
 `px`/`mm`/`cm`/`pt`/`in`/`m`/`ft`.
 
-Not yet: stipples, dot patterns, pattern fills and
-strokes, Image markers, `Text` position and alignment, coverages, `viz.pass`, time conditions.
+Not yet: pattern fills and strokes, Image markers, `Text` position and alignment, coverages, `viz.pass`, time conditions.
+
+Dots of a dot pattern or stipple are 1 px squares in the fill colour (the draft
+leaves their size and colour open). A stipple scatters `ratio * area` dots at
+random with a fixed seed, so at high ratios dots overlap and the covered share
+stays below `ratio`.

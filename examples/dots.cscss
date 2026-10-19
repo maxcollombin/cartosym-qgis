@@ -1,0 +1,7 @@
+Landuse
+{
+   stroke: { color: black; width: 1 px };
+   [FunctionCode = 'parking'] { fill: { color: #aa3333; dotpattern: { distance: 6 px } }; }
+   [FunctionCode = 'park'] { fill: { color: #226622; stipple: { ratio: 0.15 } }; }
+   [FunctionCode = 'commercial'] { fill: { color: #223388; stipple: { ratio: 0.5 } }; }
+}

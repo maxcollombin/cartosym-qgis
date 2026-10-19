@@ -72,9 +72,9 @@ def test_overlapping_rules_are_merged_in_each_cell():
 
 
 def test_unsupported_is_reported_not_silent():
-    style = {"stylingRules": [{"symbolizer": {"fill": {"color": "red", "stipple": {"size": 2}}}}]}
+    style = {"stylingRules": [{"symbolizer": {"fill": {"color": "red", "pattern": {"type": "Dot"}}}}]}
     _, report = build_renderer(style, "polygon", "Landuse")
-    assert any("stipple" in d for d in report.dropped)
+    assert any("fill.pattern" in d for d in report.dropped)
 
 
 def test_other_layer_and_geometry_are_skipped():
@@ -217,3 +217,25 @@ def test_label_in_qml():
     qml = to_qml(renderer, "polygon", labeling=labeling)
     assert '<labeling type="rule-based">' in qml
     assert 'bufferDraw="1"' in qml and 'bufferSizeUnits="Pixel"' in qml
+
+
+def _fill_layer(fill):
+    style = {"stylingRules": [{"symbolizer": {"fill": fill}}]}
+    renderer, report = build_renderer(style, "polygon")
+    return renderer.rootRule().children()[0].symbol().symbolLayer(0), (renderer, report)
+
+
+@pytest.mark.parametrize(
+    ("distance", "expected"),
+    [({"px": 6}, (6.0, 6.0)), ([4, 8], (4.0, 8.0)), ({"horizontal": 10, "vertical": 5}, (10.0, 5.0))],
+)
+def test_dot_pattern_distance_forms(distance, expected):
+    layer, _keep = _fill_layer({"color": "red", "dotpattern": {"distance": distance}})
+    assert (layer.distanceX(), layer.distanceY()) == expected
+    assert layer.subSymbol().color().name() == "#ff0000"
+
+
+def test_stipple_dot_count_follows_the_ratio():
+    layer, (_r, report) = _fill_layer({"color": "red", "stipple": {"ratio": 0.2}})
+    assert layer.pointCount() == 2000 and layer.densityArea() == 10000.0
+    assert any("dot size" in a for a in report.assumed)
