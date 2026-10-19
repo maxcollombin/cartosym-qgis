@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from qgis.core import (
     Qgis,
     QgsFillSymbol,
+    QgsCentroidFillSymbolLayer,
     QgsLinePatternFillSymbolLayer,
+    QgsMarkerLineSymbolLayer,
     QgsPointPatternFillSymbolLayer,
     QgsRandomMarkerFillSymbolLayer,
+    QgsRasterFillSymbolLayer,
+    QgsSVGFillSymbolLayer,
     QgsLineSymbol,
     QgsMarkerSymbol,
     QgsSimpleFillSymbolLayer,
@@ -21,10 +26,10 @@ from qgis.core import (
 )
 from qgis.PyQt.QtCore import Qt
 
+from .markers import graphic_layer, marker_symbol, native_size, resolve
 from .units import Unsupported, color, length
 
 POLYGON, LINE, POINT = 2, 1, 0
-_NOTES = ("pattern",)
 
 
 @dataclass(frozen=True)
@@ -47,6 +52,7 @@ class Options:
     hatch_angle: str = "clockwise"  # or "counter-clockwise", from the x axis
     dash_units: str = "px"  # or "stroke-width": dashPattern values are multiples of the width
     outline_unit: str = "px"  # unit of a font outline's size; "pt" matches Font.size
+    base_dir: Path | None = None  # where relative image paths start (the style's folder)
     outline_extent: str = "outward"  # or "centered": size is the width of a stroke on the contour
 
 
@@ -63,6 +69,8 @@ def build_symbol(
         LINE: _line_layers,
         POINT: _point_layers,
     }[dimension](sym, notes, options)
+    if dimension != POINT:
+        layers += _marker_layers(sym.get("marker"), dimension, notes, options)
     if not layers:
         return None
     if options.casing_pass == "all-first":  # layer N of every feature before N+1
@@ -102,17 +110,18 @@ def _polygon_layers(sym: dict[str, Any], notes: list[str], options: Options) -> 
             layer.setBrushStyle(Qt.NoBrush)
     else:
         layer.setBrushStyle(Qt.NoBrush)
-    _note_unsupported(fill, "fill", notes)
     if not stroke:
         if hatch is None:
             layer.setStrokeStyle(Qt.NoPen)
         return [layer]
 
-    _note_unsupported(stroke, "stroke", notes)
     width, unit = _stroke_width(stroke, notes)
     main = _outline(stroke, stroke.get("color", "black"), width, unit, notes)
     casing = _casing_outline(stroke, width, unit, notes, options)
     center = stroke.get("centerLine") or stroke.get("center")
+    pattern = _pattern_stroke_layer(stroke, notes, options)
+    if pattern is not None:
+        return _polygon_with_pattern_outline(layer, hatch, stroke, casing, center, main, pattern, notes)
     if not casing and not center and hatch is None:  # fill and outline together
         layer.setStrokeColor(main.strokeColor())
         layer.setStrokeWidth(width)
@@ -138,7 +147,26 @@ def _pattern_layer(fill, notes, options):
         return _dot_pattern_layer(fill, fill["dotpattern"], notes)
     if fill.get("stipple") is not None:
         return _stipple_layer(fill, fill["stipple"], notes)
+    if fill.get("pattern") is not None:
+        return _graphic_fill_layer(fill["pattern"], notes, options)
     return None
+
+
+def _graphic_fill_layer(graphic, notes, options):
+    """An ``Image`` repeated over the fill (at its own size); other graphics are not tiled yet."""
+    if graphic.get("type") != "Image":
+        notes.append(f"fill.pattern {graphic.get('type')!r} not carried over")
+        return None
+    path = resolve(graphic.get("image") or {}, options.base_dir)
+    if path is None:
+        notes.append(f"fill.pattern image {(graphic.get('image') or {}).get('path')!r}: file not found")
+        return None
+    if path.suffix.lower() == ".svg":
+        return QgsSVGFillSymbolLayer(str(path), native_size(path)[0])
+    layer = QgsRasterFillSymbolLayer(str(path))
+    layer.setWidth(native_size(path)[0])
+    layer.setSizeUnit(Qgis.RenderUnit.Pixels)
+    return layer
 
 
 def _dot(fill, notes) -> QgsMarkerSymbol:
@@ -227,6 +255,21 @@ def _length_or(value, default, notes, name) -> tuple[float, Any]:
         return float(default), Qgis.RenderUnit.Pixels
 
 
+def _polygon_with_pattern_outline(layer, hatch, stroke, casing, center, main, pattern, notes):
+    """Fill, then the plain outline when the stroke has a colour or width, then the pattern."""
+    if hatch is None:
+        layer.setStrokeStyle(Qt.NoPen)
+    layers = [layer]
+    if casing:
+        layers.append(casing)
+    if "color" in stroke or "width" in stroke:
+        layers.append(main)
+    if center:
+        layers.append(_styling_outline(center, stroke, notes, "stroke.center"))
+    layers.append(pattern)
+    return layers
+
+
 def _outline(stroke, col, width, unit, notes) -> QgsSimpleFillSymbolLayer:
     """An outline-only fill layer."""
     layer = QgsSimpleFillSymbolLayer()
@@ -291,6 +334,9 @@ def _line_layers(sym: dict[str, Any], notes: list[str], options: Options) -> lis
         return []
     width, unit = _stroke_width(stroke, notes)
     main = _line_layer(stroke.get("color", "black"), stroke.get("opacity"), width, unit, stroke, notes)
+    pattern = _pattern_stroke_layer(stroke, notes, options)
+    if pattern is not None and "color" not in stroke and "width" not in stroke:
+        return [pattern]  # a pattern alone replaces the plain line
     dash = stroke.get("dashPattern")
     if isinstance(dash, list) and dash:
         main.setUseCustomDashPattern(True)
@@ -301,7 +347,6 @@ def _line_layers(sym: dict[str, Any], notes: list[str], options: Options) -> lis
             main.setCustomDashVector([float(d) for d in dash])
             main.setCustomDashPatternUnit(Qgis.RenderUnit.Pixels)
         notes.append(f"~stroke.dashPattern values read as {options.dash_units} (the draft leaves it open)")
-    _note_unsupported(stroke, "stroke", notes)
     layers = [main]
     casing = stroke.get("casing")
     if casing:
@@ -311,6 +356,8 @@ def _line_layers(sym: dict[str, Any], notes: list[str], options: Options) -> lis
     if center:
         w, u = _stroke_width(center, notes)
         layers.append(_line_layer(center.get("color", "black"), center.get("opacity"), w, u, stroke, notes))
+    if pattern is not None:
+        layers.append(pattern)
     return layers
 
 
@@ -320,28 +367,54 @@ def _point_layers(sym: dict[str, Any], notes: list[str], options: Options) -> li
         return []
     layers = []
     for element in marker.get("elements", []):
-        if element.get("type") != "Dot":
-            notes.append(f"marker element {element.get('type')!r}")
-            continue
-        shape = QgsSimpleMarkerSymbolLayerBase.Shape.Circle
-        size, unit = (10.0, Qgis.RenderUnit.Pixels)
-        try:
-            if "size" in element:
-                size, unit = length(element["size"])
-        except Unsupported as exc:
-            notes.append(f"Dot.size: {exc}")
-        layer = QgsSimpleMarkerSymbolLayer(shape, size)
-        layer.setSizeUnit(unit)
-        try:
-            layer.setColor(color(element.get("color", "white"), element.get("opacity")))
-        except Unsupported as exc:
-            notes.append(f"Dot.color: {exc}")
-        layer.setStrokeStyle(Qt.NoPen)
-        layers.append(layer)
+        layer = graphic_layer(element, notes, options.base_dir)
+        if layer is not None:
+            layers.append(layer)
     return layers
 
 
-def _note_unsupported(part: dict[str, Any] | None, name: str, notes: list[str]) -> None:
-    for key in _NOTES:
-        if part and part.get(key):
-            notes.append(f"{name}.{key}")
+def _pattern_stroke_layer(stroke, notes: list[str], options: Options):
+    """A graphic repeated along the stroke, ``patternGap`` apart (it follows the line)."""
+    graphic = stroke.get("pattern")
+    if graphic is None:
+        return None
+    symbol = marker_symbol([graphic], notes, options.base_dir)
+    if symbol is None:
+        return None
+    layer = QgsMarkerLineSymbolLayer()
+    layer.setPlacement(Qgis.MarkerLinePlacement.Interval)
+    layer.setRotateSymbols(True)
+    for key, setter, unit_setter in (
+        ("patternGap", layer.setInterval, layer.setIntervalUnit),
+        ("patternInitialGap", layer.setOffsetAlongLine, layer.setOffsetAlongLineUnit),
+    ):
+        if key not in stroke:
+            continue
+        try:
+            value, unit = length(stroke[key])
+        except Unsupported as exc:
+            notes.append(f"stroke.{key}: {exc}")
+            continue
+        setter(value)
+        unit_setter(unit)
+    layer.setSubSymbol(symbol)
+    return layer
+
+
+def _marker_layers(marker, dimension: int, notes: list[str], options: Options) -> list[Any]:
+    """A marker on a polygon sits at its centroid, on a line at every vertex."""
+    if not marker:
+        return []
+    symbol = marker_symbol(marker.get("elements", []), notes, options.base_dir)
+    if symbol is None:
+        return []
+    if dimension == POLYGON:
+        layer = QgsCentroidFillSymbolLayer()
+        layer.setSubSymbol(symbol)
+        return [layer]
+    layer = QgsMarkerLineSymbolLayer()
+    layer.setPlacement(Qgis.MarkerLinePlacement.Vertex)
+    layer.setRotateSymbols(False)  # a marker faces the viewer, it does not follow the line
+    layer.setSubSymbol(symbol)
+    return [layer]
+

@@ -239,3 +239,56 @@ def test_stipple_dot_count_follows_the_ratio():
     layer, (_r, report) = _fill_layer({"color": "red", "stipple": {"ratio": 0.2}})
     assert layer.pointCount() == 2000 and layer.densityArea() == 10000.0
     assert any("dot size" in a for a in report.assumed)
+
+
+EXAMPLES = Path(__file__).parent.parent / "examples"
+
+
+def _image_options():
+    from cartosym_qgis.symbols import Options
+    return Options(base_dir=EXAMPLES)
+
+
+def _first_symbol(style, geometry, options=None):
+    renderer, report = build_renderer(style, geometry, options=options or _image_options())
+    return renderer.rootRule().children()[0].symbol(), (renderer, report)
+
+
+def test_image_marker_hot_spot_moves_the_image_to_the_point():
+    style = {"stylingRules": [{"symbolizer": {"marker": {"elements": [
+        {"type": "Image", "image": {"path": "pin.png"}, "hotSpot": [{"pc": 50}, {"pc": 100}]}
+    ]}}}]}
+    symbol, _keep = _first_symbol(style, "point")
+    layer = symbol.symbolLayer(0)
+    assert layer.size() == 24.0  # the image's own width
+    assert (layer.offset().x(), layer.offset().y()) == (0.0, -16.0)  # tip (bottom centre) on the point
+
+
+def test_marker_on_a_polygon_is_at_its_centroid_and_on_a_line_at_its_vertices():
+    marker = {"elements": [{"type": "Dot", "color": "red"}]}
+    polygon, _k1 = _first_symbol({"stylingRules": [{"symbolizer": {"fill": {"color": "gray"}, "marker": marker}}]}, "polygon")
+    assert [l.layerType() for l in polygon.symbolLayers()] == ["SimpleFill", "CentroidFill"]
+    line, _k2 = _first_symbol({"stylingRules": [{"symbolizer": {"stroke": {"color": "gray"}, "marker": marker}}]}, "line")
+    assert [l.layerType() for l in line.symbolLayers()] == ["SimpleLine", "MarkerLine"]
+
+
+def test_missing_image_is_reported():
+    style = {"stylingRules": [{"symbolizer": {"marker": {"elements": [{"type": "Image", "image": {"path": "nope.png"}}]}}}]}
+    _, report = build_renderer(style, "point", options=_image_options())
+    assert any("file not found" in d for d in report.dropped)
+
+
+def test_pattern_stroke_follows_the_line_at_the_gap():
+    style = {"stylingRules": [{"symbolizer": {"stroke": {
+        "pattern": {"type": "Image", "image": {"path": "arrow.png"}}, "patternGap": 40, "patternInitialGap": 5}}}]}
+    symbol, _keep = _first_symbol(style, "line")
+    assert symbol.symbolLayerCount() == 1  # no colour or width: the pattern replaces the line
+    layer = symbol.symbolLayer(0)
+    assert (layer.interval(), layer.offsetAlongLine()) == (40.0, 5.0)
+    assert layer.rotateSymbols()
+
+
+def test_image_fill_pattern_is_tiled():
+    style = {"stylingRules": [{"symbolizer": {"fill": {"pattern": {"type": "Image", "image": {"path": "tree.png"}}}}}]}
+    symbol, _keep = _first_symbol(style, "polygon")
+    assert symbol.symbolLayer(0).layerType() == "RasterFill"

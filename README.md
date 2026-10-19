@@ -40,12 +40,15 @@ Other assumptions are listed on stderr as `assumed:`.
 ## Supported so far
 
 Polygon fill and stroke (colour, opacity, width, join), line stroke (cap, join,
-dash), casing and centre line, hatches, dot patterns, stipples, `Text` labels with font outline (`label.elements`), `Dot` markers, `viz.sd`, property comparisons, `like`, `in`, `between`,
+dash), casing and centre line, hatches, dot patterns, stipples, `Image` and `Dot` markers (on points, at a polygon's centroid, at a line's vertices) with `hotSpot` and `position`, an `Image` as fill pattern or repeated along a stroke (`pattern`, `patternGap`, `patternInitialGap`), `Text` labels with font outline (`label.elements`), `Dot` markers, `viz.sd`, property comparisons, `like`, `in`, `between`,
 `px`/`mm`/`cm`/`pt`/`in`/`m`/`ft`.
 
-Not yet: pattern fills and strokes, Image markers, `Text` position and alignment, coverages, `viz.pass`, time conditions.
+Not yet: `Dot` and shapes as fill patterns, `tint`/`blackTint`/`alphaThreshold`, `Text` position and alignment, coverages, `viz.pass`, time conditions.
 
 Dots of a dot pattern or stipple are 1 px squares in the fill colour (the draft
 leaves their size and colour open). A stipple scatters `ratio * area` dots at
 random with a fixed seed, so at high ratios dots overlap and the covered share
 stays below `ratio`.
+
+Relative image paths start in the style file's folder. An `Image` is drawn at its
+own size; `pc` in a `hotSpot` is read as a percentage of the image.

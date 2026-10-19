@@ -1,0 +1,10 @@
+{"stylingRules": [
+ {"selector": {"op": "=", "args": [{"property": "FunctionCode"}, "park"]},
+  "symbolizer": {"fill": {"pattern": {"type": "Image", "image": {"path": "tree.png"}}}, "stroke": {"color": "black", "width": {"px": 1}}}},
+ {"selector": {"op": "=", "args": [{"property": "FunctionCode"}, "parking"]},
+  "symbolizer": {"fill": {"color": "#eeeeee"}, "stroke": {"color": "black", "width": {"px": 1}},
+                 "marker": {"elements": [{"type": "Image", "image": {"path": "pin.png"}, "hotSpot": [{"pc": 50}, {"pc": 100}]}]}}},
+ {"selector": {"op": "=", "args": [{"property": "FunctionCode"}, "commercial"]},
+  "symbolizer": {"fill": {"color": "#fff3d0"}, "stroke": {"pattern": {"type": "Image", "image": {"path": "arrow.png"}}, "patternGap": 40},
+                 "marker": {"elements": [{"type": "Image", "image": {"path": "flag.svg"}, "hotSpot": [{"pc": 15}, {"pc": 100}]}]}}}
+]}

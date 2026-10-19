@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 from .renderer import build, load_style, to_qml
 from .symbols import Options
@@ -45,7 +46,15 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
 
     style = load_style(args.style)
-    options = Options(args.casing_width, args.casing_pass, args.hatch_angle, args.dash_units, args.outline_unit, args.outline_extent)
+    options = Options(
+        casing_width=args.casing_width,
+        casing_pass=args.casing_pass,
+        hatch_angle=args.hatch_angle,
+        dash_units=args.dash_units,
+        outline_unit=args.outline_unit,
+        outline_extent=args.outline_extent,
+        base_dir=Path(args.style).resolve().parent,
+    )
     with qgis_app():
         if args.command == "qml":
             renderer, labeling, report = build(style, args.geometry, args.layer, options)
