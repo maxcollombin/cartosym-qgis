@@ -217,7 +217,11 @@ def build_coverage(
 
     try:
         if base.get("colorChannels"):
-            channels = [evaluate(c, values) for c in base["colorChannels"][:3]]
+            spec = base["colorChannels"]
+            # {r, g, b}: components in 0..1 given by expressions; [a, b, c]: raw bands
+            fixed = isinstance(spec, dict)
+            names = [spec[k] for k in ("r", "g", "b")] if fixed else spec[:3]
+            channels = [evaluate(c, values) for c in names]
             path = work / "color.tif"
             _write_tiff(path, [*channels, *alpha_bands], geotransform, projection)
             layer = QgsRasterLayer(str(path), f"{layer_id} colour")
@@ -225,13 +229,18 @@ def build_coverage(
             for setter in (renderer.setRedContrastEnhancement, renderer.setGreenContrastEnhancement, renderer.setBlueContrastEnhancement):
                 enhancement = QgsContrastEnhancement(layer.dataProvider().dataType(1))
                 enhancement.setContrastEnhancementAlgorithm(QgsContrastEnhancement.StretchToMinimumMaximum)
+                if fixed:
+                    enhancement.setMinimumValue(0.0)
+                    enhancement.setMaximumValue(1.0)
                 setter(enhancement)
             if alpha_bands:
                 renderer.setAlphaBand(4)
             layer.setRenderer(renderer)
             layer.setOpacity(opacity)
+            _gamma(layer, base, report)
             result.layers.append(layer)
-            report.assumed.append("coverage: band values stretched to their min/max (the draft defines no mapping to 0..1)")
+            if not fixed:
+                report.assumed.append("coverage: band values stretched to their min/max (the draft defines no mapping to 0..1)")
         elif base.get("singleChannel") is not None and base.get("colorMap"):
             single = evaluate(base["singleChannel"], values)
             path = work / "single.tif"
@@ -239,6 +248,7 @@ def build_coverage(
             layer = QgsRasterLayer(str(path), f"{layer_id} colour map")
             _pseudocolor(layer, _ramp_items(base["colorMap"], None, report), 2 if alpha_bands else None)
             layer.setOpacity(opacity)
+            _gamma(layer, base, report)
             result.layers.append(layer)
             report.assumed.append("coverage: colorMap interpolated linearly, clamped beyond its ends (the draft leaves it open)")
         if hill and base.get("singleChannel") is not None:
@@ -246,6 +256,18 @@ def build_coverage(
     except Unsupported as exc:
         report.add("coverage", str(exc))
     return result
+
+
+def _gamma(layer: QgsRasterLayer, base: dict[str, Any], report: Report) -> None:
+    """``gamma`` is not in the draft's coverage model (#86); QGIS applies it to the colours."""
+    gamma = base.get("gamma")
+    if gamma is None:
+        return
+    if not isinstance(gamma, (int, float)) or gamma <= 0:
+        report.add("coverage", f"gamma {gamma!r} not carried over")
+        return
+    layer.brightnessFilter().setGamma(float(gamma))
+    report.assumed.append("coverage: gamma applied to the colours (it is not part of the draft's coverage model)")
 
 
 def _hillshade(base, hill, values, geotransform, projection, work, opacity, report, layer_id) -> QgsRasterLayer:

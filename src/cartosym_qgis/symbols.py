@@ -9,6 +9,9 @@ from typing import Any
 from qgis.core import (
     Qgis,
     QgsFillSymbol,
+    QgsGradientColorRamp,
+    QgsGradientFillSymbolLayer,
+    QgsGradientStop,
     QgsCentroidFillSymbolLayer,
     QgsLinePatternFillSymbolLayer,
     QgsMarkerLineSymbolLayer,
@@ -18,42 +21,31 @@ from qgis.core import (
     QgsSVGFillSymbolLayer,
     QgsLineSymbol,
     QgsMarkerSymbol,
+    QgsProperty,
     QgsSimpleFillSymbolLayer,
     QgsSimpleLineSymbolLayer,
     QgsSimpleMarkerSymbolLayer,
     QgsSimpleMarkerSymbolLayerBase,
     QgsSymbol,
+    QgsSymbolLayer,
 )
-from qgis.PyQt.QtCore import Qt
+from math import cos, radians, sin
 
+from qgis.PyQt.QtCore import QPointF, Qt
+from qgis.PyQt.QtGui import QColor
+
+from . import expressions
 from .markers import graphic_layer, marker_symbol, native_size, resolve
-from .units import Unsupported, color, length
+from .units import _UNITS, Unsupported, color, length
 
 POLYGON, LINE, POINT = 2, 1, 0
 
 
 @dataclass(frozen=True)
 class Options:
-    """Readings of requirements the draft leaves open (see /req/casing/casing).
+    """Where relative image paths start (the style's folder)."""
 
-    ``casing_width``: ``total`` (the casing's width is the whole band) or
-    ``extra`` (it extends that far beyond each side of the stroke).
-    ``casing_pass``: ``all-first`` (every casing is drawn before any stroke, so
-    crossings merge) or ``with-feature`` (each feature's casing is drawn with
-    its own stroke). ``hatch_angle``: the direction a hatch angle turns from the
-    x axis. ``dash_units``: the unit of ``dashPattern`` values. ``outline_unit``: the
-    unit of a font outline's ``size``. ``outline_extent``: whether ``size`` is how
-    far the outline extends beyond the glyph (``outward``, as the draft words
-    it) or the width of a stroke centred on the glyph contour (``centered``).
-    """
-
-    casing_width: str = "total"
-    casing_pass: str = "all-first"
-    hatch_angle: str = "clockwise"  # or "counter-clockwise", from the x axis
-    dash_units: str = "px"  # or "stroke-width": dashPattern values are multiples of the width
-    outline_unit: str = "px"  # unit of a font outline's size; "pt" matches Font.size
-    base_dir: Path | None = None  # where relative image paths start (the style's folder)
-    outline_extent: str = "outward"  # or "centered": size is the width of a stroke on the contour
+    base_dir: Path | None = None
 
 
 def build_symbol(
@@ -73,9 +65,12 @@ def build_symbol(
         layers += _marker_layers(sym.get("marker"), dimension, notes, options)
     if not layers:
         return None
-    if options.casing_pass == "all-first":  # layer N of every feature before N+1
-        for order, layer in enumerate(layers):
-            layer.setRenderingPass(order)
+    z = sym.get("zOrder")
+    z = int(z) if isinstance(z, (int, float)) else 0
+    # with symbol levels QGIS draws pass by pass: a higher zOrder is drawn later (on top),
+    # and within one zOrder layer N of every feature before layer N + 1 (casings first)
+    for order, layer in enumerate(layers):
+        layer.setRenderingPass(order + 16 * (z + 1000))
     cls = {POLYGON: QgsFillSymbol, LINE: QgsLineSymbol, POINT: QgsMarkerSymbol}[dimension]
     symbol = cls(layers)
     opacity = sym.get("opacity")
@@ -86,12 +81,65 @@ def build_symbol(
     return symbol
 
 
+def invisible_symbol(dimension: int) -> QgsSymbol:
+    """A symbol that draws nothing: QGIS labels only the features a rule draws."""
+    if dimension == POLYGON:
+        layer = QgsSimpleFillSymbolLayer()
+        layer.setBrushStyle(Qt.NoBrush)
+        layer.setStrokeStyle(Qt.NoPen)
+        return QgsFillSymbol([layer])
+    if dimension == LINE:
+        layer = QgsSimpleLineSymbolLayer()
+        layer.setPenStyle(Qt.NoPen)
+        return QgsLineSymbol([layer])
+    layer = QgsSimpleMarkerSymbolLayer()
+    layer.setColor(QColor(0, 0, 0, 0))
+    layer.setStrokeStyle(Qt.NoPen)
+    return QgsMarkerSymbol([layer])
+
+
+def _is_expression(value: Any) -> bool:
+    return isinstance(value, dict) and ("op" in value or "property" in value or "sysId" in value)
+
+
+def _unit_expression(value: Any):
+    """``(expression, QGIS unit)`` for ``{"px": <expression>}``, else None."""
+    if isinstance(value, dict) and len(value) == 1:
+        ((unit, inner),) = value.items()
+        if _is_expression(inner) and unit in _UNITS:
+            return inner, _UNITS[unit][0]
+    return None
+
+
 def _stroke_width(stroke: dict[str, Any], notes: list[str]) -> tuple[float, Any]:
+    """The stroke width; one given by an expression is set on the layer by :func:`_data_defined_width`."""
+    width = stroke.get("width")
+    if _is_expression(width):
+        return 1.0, Qgis.RenderUnit.Pixels
+    if (wrapped := _unit_expression(width)) is not None:
+        return 1.0, wrapped[1]
     try:
         return length(stroke.get("width", 1))
     except Unsupported as exc:
         notes.append(f"stroke.width: {exc}")
         return 1.0, Qgis.RenderUnit.Pixels
+
+
+def _data_defined_width(layer, styling: dict[str, Any], notes: list[str]) -> None:
+    """A width that is an expression (``lanes * 3 + 1``) is evaluated per feature (px unless given)."""
+    width = styling.get("width")
+    if (wrapped := _unit_expression(width)) is not None:
+        width = wrapped[0]
+    elif not _is_expression(width):
+        return
+    else:
+        notes.append("~stroke.width expression read in px")
+    try:
+        expression = expressions.to_qgis(width)
+    except Unsupported as exc:
+        notes.append(f"stroke.width: {exc}")
+        return
+    layer.setDataDefinedProperty(QgsSymbolLayer.Property.StrokeWidth, QgsProperty.fromExpression(expression))
 
 
 def _polygon_layers(sym: dict[str, Any], notes: list[str], options: Options) -> list[Any]:
@@ -117,6 +165,7 @@ def _polygon_layers(sym: dict[str, Any], notes: list[str], options: Options) -> 
 
     width, unit = _stroke_width(stroke, notes)
     main = _outline(stroke, stroke.get("color", "black"), width, unit, notes)
+    _data_defined_width(main, stroke, notes)
     casing = _casing_outline(stroke, width, unit, notes, options)
     center = stroke.get("centerLine") or stroke.get("center")
     pattern = _pattern_stroke_layer(stroke, notes, options)
@@ -126,6 +175,7 @@ def _polygon_layers(sym: dict[str, Any], notes: list[str], options: Options) -> 
         layer.setStrokeColor(main.strokeColor())
         layer.setStrokeWidth(width)
         layer.setStrokeWidthUnit(unit)
+        _data_defined_width(layer, stroke, notes)
         layer.setPenJoinStyle(main.penJoinStyle())
         return [layer]
     if hatch is None:
@@ -149,7 +199,59 @@ def _pattern_layer(fill, notes, options):
         return _stipple_layer(fill, fill["stipple"], notes)
     if fill.get("pattern") is not None:
         return _graphic_fill_layer(fill["pattern"], notes, options)
+    if fill.get("gradient") is not None:
+        return _gradient_layer(fill["gradient"], notes)
     return None
+
+
+def _gradient_layer(gradient: dict[str, Any], notes: list[str]) -> QgsGradientFillSymbolLayer | None:
+    """A linear, radial or conic gradient across the feature's bounding box.
+
+    ``angle`` is read like CSS (0 towards the top, clockwise); ``position`` and
+    ``size`` are fractions of the bounding box, ``size`` being the diameter.
+    """
+    keys = gradient.get("keys") or []
+    if len(keys) < 2:
+        notes.append("fill.gradient needs at least two keys")
+        return None
+    stops = []
+    try:
+        colors = [color(k["color"], k.get("opacity")) for k in keys]
+    except Unsupported as exc:
+        notes.append(f"fill.gradient key colour: {exc}")
+        return None
+    for index, key in enumerate(keys[1:-1], 1):
+        offset = key.get("percent")
+        if not isinstance(offset, (int, float)):
+            offset = index / (len(keys) - 1)
+        stops.append(QgsGradientStop(float(offset), colors[index]))
+    kind = gradient.get("type", "linear")
+    if kind not in ("linear", "radial", "conic", "conical"):
+        notes.append(f"fill.gradient type {kind!r} (expression) read as linear")
+        kind = "linear"
+    angle = radians(float(gradient.get("angle", 0)) if isinstance(gradient.get("angle", 0), (int, float)) else 0)
+    dx, dy = sin(angle), -cos(angle)  # screen y points down
+    position = gradient.get("position") or [0.5, 0.5]
+    size = gradient.get("size", 1)
+    layer = QgsGradientFillSymbolLayer()
+    layer.setGradientColorType(QgsGradientFillSymbolLayer.GradientColorType.ColorRamp)
+    layer.setColorRamp(QgsGradientColorRamp(colors[0], colors[-1], False, stops))
+    layer.setCoordinateMode(Qgis.SymbolCoordinateReference.Feature)
+    if kind == "linear":
+        layer.setGradientType(QgsGradientFillSymbolLayer.GradientType.Linear)
+        layer.setReferencePoint1(QPointF(0.5 - dx / 2, 0.5 - dy / 2))
+        layer.setReferencePoint2(QPointF(0.5 + dx / 2, 0.5 + dy / 2))
+    else:
+        centre = QPointF(float(position[0]), float(position[1]))
+        if kind == "radial":
+            layer.setGradientType(QgsGradientFillSymbolLayer.GradientType.Radial)
+            layer.setReferencePoint2(QPointF(centre.x() + float(size) / 2, centre.y()))
+        else:
+            layer.setGradientType(QgsGradientFillSymbolLayer.GradientType.Conical)
+            layer.setReferencePoint2(QPointF(centre.x() + dx / 2, centre.y() + dy / 2))
+        layer.setReferencePoint1(centre)
+    notes.append("~fill.gradient angle read like CSS (0 towards the top, clockwise), position and size relative to the feature")
+    return layer
 
 
 def _graphic_fill_layer(graphic, notes, options):
@@ -236,8 +338,8 @@ def _hatch_layer(fill, hatch, notes, options) -> QgsLinePatternFillSymbolLayer:
     # QGIS draws the pattern line from the sub-symbol: its width must be set too
     layer.subSymbol().setWidth(width)
     layer.subSymbol().setOutputUnit(w_unit)
-    # QGIS turns counter-clockwise from the x axis
-    layer.setLineAngle(float(angle) if options.hatch_angle == "counter-clockwise" else -float(angle))
+    # the draft turns clockwise from the x axis, QGIS counter-clockwise
+    layer.setLineAngle(-float(angle))
     try:
         layer.subSymbol().setColor(color(fill.get("color", "black"), fill.get("opacity")))
     except Unsupported as exc:
@@ -296,19 +398,15 @@ def _casing_outline(stroke, width, unit, notes, options) -> QgsSimpleFillSymbolL
     casing = stroke.get("casing")
     if not casing:
         return None
-    cw, cu = _casing_width(casing, width, unit, notes, options)
+    cw, cu = _casing_width(casing, notes)
     return _outline(
         {**stroke, "opacity": casing.get("opacity")}, casing.get("color", "black"), cw, cu, notes
     )
 
 
-def _casing_width(casing, width, unit, notes, options) -> tuple[float, Any]:
-    cw, cu = _stroke_width(casing, notes)
-    if options.casing_width == "extra":
-        if cu == unit:
-            return width + 2 * cw, unit
-        notes.append("~casing width 'extra' needs the stroke's unit, read as 'total'")
-    return cw, cu
+def _casing_width(casing, notes) -> tuple[float, Any]:
+    """The casing's ``width`` is read as the whole band (the draft leaves it open)."""
+    return _stroke_width(casing, notes)
 
 
 _JOIN = {"miter": Qt.MiterJoin, "round": Qt.RoundJoin, "bevel": Qt.BevelJoin}
@@ -334,23 +432,27 @@ def _line_layers(sym: dict[str, Any], notes: list[str], options: Options) -> lis
         return []
     width, unit = _stroke_width(stroke, notes)
     main = _line_layer(stroke.get("color", "black"), stroke.get("opacity"), width, unit, stroke, notes)
+    _data_defined_width(main, stroke, notes)
     pattern = _pattern_stroke_layer(stroke, notes, options)
     if pattern is not None and "color" not in stroke and "width" not in stroke:
         return [pattern]  # a pattern alone replaces the plain line
     dash = stroke.get("dashPattern")
     if isinstance(dash, list) and dash:
         main.setUseCustomDashPattern(True)
-        if options.dash_units == "stroke-width":
-            main.setCustomDashVector([float(d) * width for d in dash])
-            main.setCustomDashPatternUnit(unit)
-        else:
-            main.setCustomDashVector([float(d) for d in dash])
-            main.setCustomDashPatternUnit(Qgis.RenderUnit.Pixels)
-        notes.append(f"~stroke.dashPattern values read as {options.dash_units} (the draft leaves it open)")
+        main.setCustomDashVector([float(d) for d in dash])
+        main.setCustomDashPatternUnit(Qgis.RenderUnit.Pixels)
+        notes.append("~stroke.dashPattern values read in px (the draft leaves it open)")
+        if stroke.get("dashOffset") is not None:
+            try:
+                offset, offset_unit = length(stroke["dashOffset"])
+                main.setDashPatternOffset(offset)
+                main.setDashPatternOffsetUnit(offset_unit)
+            except Unsupported as exc:
+                notes.append(f"stroke.dashOffset: {exc}")
     layers = [main]
     casing = stroke.get("casing")
     if casing:
-        cw, cu = _casing_width(casing, width, unit, notes, options)
+        cw, cu = _casing_width(casing, notes)
         layers.insert(0, _line_layer(casing.get("color", "black"), casing.get("opacity"), cw, cu, stroke, notes))
     center = stroke.get("centerLine") or stroke.get("center")
     if center:

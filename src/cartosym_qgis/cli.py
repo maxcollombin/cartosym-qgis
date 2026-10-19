@@ -42,27 +42,13 @@ def main(argv: list[str] | None = None) -> int:
     k.add_argument("-o", "--output", required=True)
     for sp in (q, r, k):
         sp.add_argument("--strict", action="store_true", help="fail if anything is dropped")
-        sp.add_argument("--casing-width", choices=["total", "extra"], default="total")
-        sp.add_argument("--casing-pass", choices=["all-first", "with-feature"], default="all-first")
-        sp.add_argument("--hatch-angle", choices=["clockwise", "counter-clockwise"], default="clockwise")
-        sp.add_argument("--dash-units", choices=["px", "stroke-width"], default="px")
-        sp.add_argument("--outline-unit", choices=["px", "pt"], default="px")
-        sp.add_argument("--outline-extent", choices=["outward", "centered"], default="outward")
     args = p.parse_args(argv)
 
     if args.command == "kit":
         style_file = args.style or str(Path(args.directory) / "style.cs.json")
         args.style = style_file
     style = load_style(args.style) if args.command != "kit" else None
-    options = Options(
-        casing_width=args.casing_width,
-        casing_pass=args.casing_pass,
-        hatch_angle=args.hatch_angle,
-        dash_units=args.dash_units,
-        outline_unit=args.outline_unit,
-        outline_extent=args.outline_extent,
-        base_dir=Path(args.style).resolve().parent,
-    )
+    options = Options(base_dir=Path(args.style).resolve().parent)
     with qgis_app():
         if args.command == "kit":
             report = render_kit(args.directory, args.style, args.output, options)

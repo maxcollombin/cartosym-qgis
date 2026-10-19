@@ -1,0 +1,441 @@
+{
+  "casing-crossing": {
+    "style.cs.json": {
+      "image": "casing-crossing/style.png",
+      "assumed": [],
+      "dropped": []
+    }
+  },
+  "casing-order": {
+    "style.cs.json": {
+      "image": "casing-order/style.png",
+      "assumed": [],
+      "dropped": []
+    }
+  },
+  "casing-width": {
+    "style.cs.json": {
+      "image": "casing-width/style.png",
+      "assumed": [],
+      "dropped": []
+    }
+  },
+  "color-channels": {
+    "style-variant-2.cs.json": {
+      "image": "color-channels/style-variant-2.png",
+      "assumed": [
+        "coverage: band values stretched to their min/max (the draft defines no mapping to 0..1)"
+      ],
+      "dropped": []
+    },
+    "style.cs.json": {
+      "image": "color-channels/style.png",
+      "assumed": [],
+      "dropped": []
+    }
+  },
+  "color-map": {
+    "style.cs.json": {
+      "image": "color-map/style.png",
+      "assumed": [
+        "coverage: colorMap interpolated linearly, clamped beyond its ends (the draft leaves it open)"
+      ],
+      "dropped": []
+    }
+  },
+  "dash-units": {
+    "style.cs.json": {
+      "image": "dash-units/style.png",
+      "assumed": [
+        "rule: stroke.dashPattern values read in px (the draft leaves it open)"
+      ],
+      "dropped": []
+    }
+  },
+  "default-marker": {
+    "style.cs.json": {
+      "image": "default-marker/style.png",
+      "assumed": [],
+      "dropped": []
+    }
+  },
+  "dots": {
+    "style.cs.json": {
+      "image": "dots/style.png",
+      "assumed": [
+        "rule: dot size and colour read as 1 px in the fill colour (the draft leaves them open)"
+      ],
+      "dropped": []
+    }
+  },
+  "font-outline": {
+    "style.cs.json": {
+      "image": "font-outline/style.png",
+      "assumed": [
+        "rule: Font.outline.size read in px (the draft leaves it open)"
+      ],
+      "dropped": []
+    }
+  },
+  "gamma": {
+    "style.cs.json": {
+      "image": "gamma/style.png",
+      "assumed": [
+        "coverage: gamma applied to the colours (it is not part of the draft's coverage model)",
+        "coverage: colorMap interpolated linearly, clamped beyond its ends (the draft leaves it open)"
+      ],
+      "dropped": []
+    }
+  },
+  "gradient-angle": {
+    "style.cs.json": {
+      "image": "gradient-angle/style.png",
+      "assumed": [
+        "rule: fill.gradient angle read like CSS (0 towards the top, clockwise), position and size relative to the feature"
+      ],
+      "dropped": []
+    }
+  },
+  "gradient-frame": {
+    "style.cs.json": {
+      "image": "gradient-frame/style.png",
+      "assumed": [
+        "rule: fill.gradient angle read like CSS (0 towards the top, clockwise), position and size relative to the feature"
+      ],
+      "dropped": []
+    }
+  },
+  "hatch-angle": {
+    "style.cs.json": {
+      "image": "hatch-angle/style.png",
+      "assumed": [],
+      "dropped": []
+    }
+  },
+  "hillshade-factor": {
+    "style-variant-2.cs.json": {
+      "image": "hillshade-factor/style-variant-2.png",
+      "assumed": [
+        "coverage: colorMap interpolated linearly, clamped beyond its ends (the draft leaves it open)",
+        "coverage: hillShading.sun.azimuth read clockwise from north"
+      ],
+      "dropped": [
+        "coverage: hillShading.factor not carried over (the draft does not define its scale)"
+      ]
+    },
+    "style-variant-3.cs.json": {
+      "image": "hillshade-factor/style-variant-3.png",
+      "assumed": [
+        "coverage: colorMap interpolated linearly, clamped beyond its ends (the draft leaves it open)",
+        "coverage: hillShading.sun.azimuth read clockwise from north"
+      ],
+      "dropped": [
+        "coverage: hillShading.factor not carried over (the draft does not define its scale)"
+      ]
+    },
+    "style-variant-4.cs.json": {
+      "image": "hillshade-factor/style-variant-4.png",
+      "assumed": [
+        "coverage: colorMap interpolated linearly, clamped beyond its ends (the draft leaves it open)",
+        "coverage: hillShading.sun.azimuth read clockwise from north"
+      ],
+      "dropped": [
+        "coverage: hillShading.factor not carried over (the draft does not define its scale)"
+      ]
+    },
+    "style-variant-5.cs.json": {
+      "image": "hillshade-factor/style-variant-5.png",
+      "assumed": [
+        "coverage: colorMap interpolated linearly, clamped beyond its ends (the draft leaves it open)"
+      ],
+      "dropped": []
+    },
+    "style.cs.json": {
+      "image": "hillshade-factor/style.png",
+      "assumed": [
+        "coverage: colorMap interpolated linearly, clamped beyond its ends (the draft leaves it open)",
+        "coverage: hillShading.sun.azimuth read clockwise from north"
+      ],
+      "dropped": [
+        "coverage: hillShading.factor not carried over (the draft does not define its scale)"
+      ]
+    }
+  },
+  "hillshade-overlay": {
+    "style-variant-2.cs.json": {
+      "image": "hillshade-overlay/style-variant-2.png",
+      "assumed": [
+        "coverage: colorMap interpolated linearly, clamped beyond its ends (the draft leaves it open)",
+        "coverage: hillShading.sun.azimuth read clockwise from north"
+      ],
+      "dropped": [
+        "coverage: hillShading.factor not carried over (the draft does not define its scale)"
+      ]
+    },
+    "style-variant-3.cs.json": {
+      "image": "hillshade-overlay/style-variant-3.png",
+      "assumed": [
+        "coverage: colorMap interpolated linearly, clamped beyond its ends (the draft leaves it open)",
+        "coverage: hillShading.sun.azimuth read clockwise from north"
+      ],
+      "dropped": [
+        "coverage: hillShading.factor not carried over (the draft does not define its scale)"
+      ]
+    },
+    "style-variant-4.cs.json": {
+      "image": "hillshade-overlay/style-variant-4.png",
+      "assumed": [
+        "coverage: colorMap interpolated linearly, clamped beyond its ends (the draft leaves it open)",
+        "coverage: hillShading.sun.azimuth read clockwise from north"
+      ],
+      "dropped": [
+        "coverage: hillShading.factor not carried over (the draft does not define its scale)"
+      ]
+    },
+    "style-variant-5.cs.json": {
+      "image": "hillshade-overlay/style-variant-5.png",
+      "assumed": [
+        "coverage: colorMap interpolated linearly, clamped beyond its ends (the draft leaves it open)"
+      ],
+      "dropped": []
+    },
+    "style.cs.json": {
+      "image": "hillshade-overlay/style.png",
+      "assumed": [
+        "coverage: colorMap interpolated linearly, clamped beyond its ends (the draft leaves it open)",
+        "coverage: hillShading.sun.azimuth read clockwise from north"
+      ],
+      "dropped": [
+        "coverage: hillShading.factor not carried over (the draft does not define its scale)"
+      ]
+    }
+  },
+  "image-hotspot": {
+    "style.cs.json": {
+      "image": "image-hotspot/style.png",
+      "assumed": [],
+      "dropped": []
+    }
+  },
+  "label-pass": {
+    "style.cs.json": {
+      "image": "label-pass/style.png",
+      "assumed": [
+        "rule: Text.position y read as downwards, like screen coordinates"
+      ],
+      "dropped": []
+    }
+  },
+  "label-priority": {
+    "style.cs.json": {
+      "image": "label-priority/style.png",
+      "assumed": [
+        "rule: Text.position y read as downwards, like screen coordinates",
+        "rule: Label.placement.priority read as higher value wins (QGIS: 0 to 10)"
+      ],
+      "dropped": []
+    }
+  },
+  "label-spacing": {
+    "style.cs.json": {
+      "image": "label-spacing/style.png",
+      "assumed": [
+        "rule: Font.outline.size read in px (the draft leaves it open)",
+        "rule: Label.placement.minSpacing read as the distance between repeated labels (px unless given)"
+      ],
+      "dropped": []
+    }
+  },
+  "ndvi-division": {
+    "style.cs.json": {
+      "image": "ndvi-division/style.png",
+      "assumed": [
+        "coverage: colorMap interpolated linearly, clamped beyond its ends (the draft leaves it open)"
+      ],
+      "dropped": []
+    }
+  },
+  "opacity": {
+    "style.cs.json": {
+      "image": "opacity/style.png",
+      "assumed": [],
+      "dropped": []
+    }
+  },
+  "sample-core-alter-1": {
+    "style.cs.json": {
+      "image": "sample-core-alter-1/style.png",
+      "assumed": [],
+      "dropped": []
+    }
+  },
+  "sample-core-alter-2": {
+    "style.cs.json": {
+      "image": "sample-core-alter-2/style.png",
+      "assumed": [],
+      "dropped": []
+    }
+  },
+  "sample-core-alter-3": {
+    "style.cs.json": {
+      "image": "sample-core-alter-3/style.png",
+      "assumed": [
+        "rule: stroke.dashPattern values read in px (the draft leaves it open)"
+      ],
+      "dropped": []
+    }
+  },
+  "sample-core-alter-4": {
+    "style.cs.json": {
+      "image": "sample-core-alter-4/style.png",
+      "assumed": [],
+      "dropped": []
+    }
+  },
+  "sample-core-parameters-1": {
+    "style.cs.json": {
+      "image": "sample-core-parameters-1/style.png",
+      "assumed": [],
+      "dropped": []
+    }
+  },
+  "sample-core-rules-1": {
+    "style.cs.json": {
+      "image": "sample-core-rules-1/style.png",
+      "assumed": [],
+      "dropped": []
+    }
+  },
+  "sample-core-scale-1": {
+    "style.cs.json": {
+      "image": "sample-core-scale-1/style.png",
+      "assumed": [
+        "rule: Text.position y read as downwards, like screen coordinates"
+      ],
+      "dropped": []
+    }
+  },
+  "sample-core-scale-2": {
+    "style.cs.json": {
+      "image": "sample-core-scale-2/style.png",
+      "assumed": [
+        "rule: Text.position y read as downwards, like screen coordinates"
+      ],
+      "dropped": []
+    }
+  },
+  "sample-coverage-opacity-map-1": {
+    "style.cs.json": {
+      "image": "sample-coverage-opacity-map-1/style.png",
+      "assumed": [
+        "coverage: colorMap interpolated linearly, clamped beyond its ends (the draft leaves it open)"
+      ],
+      "dropped": []
+    }
+  },
+  "sample-dash-offset-1": {
+    "style.cs.json": {
+      "image": "sample-dash-offset-1/style.png",
+      "assumed": [
+        "rule: stroke.dashPattern values read in px (the draft leaves it open)"
+      ],
+      "dropped": []
+    }
+  },
+  "sample-dot-pattern-distance-1": {
+    "style.cs.json": {
+      "image": "sample-dot-pattern-distance-1/style.png",
+      "assumed": [
+        "rule: dot size and colour read as 1 px in the fill colour (the draft leaves them open)"
+      ],
+      "dropped": []
+    }
+  },
+  "sample-font-outline-properties-1": {
+    "style.cs.json": {
+      "image": "sample-font-outline-properties-1/style.png",
+      "assumed": [
+        "rule: Font.outline.size read in px (the draft leaves it open)"
+      ],
+      "dropped": []
+    }
+  },
+  "sample-gradient-types-1": {
+    "style.cs.json": {
+      "image": "sample-gradient-types-1/style.png",
+      "assumed": [
+        "rule: fill.gradient angle read like CSS (0 towards the top, clockwise), position and size relative to the feature"
+      ],
+      "dropped": [
+        "rule: fill.gradient type {'property': 'type'} (expression) read as linear not carried over"
+      ]
+    }
+  },
+  "sample-hatch-width-distance-1": {
+    "style.cs.json": {
+      "image": "sample-hatch-width-distance-1/style.png",
+      "assumed": [],
+      "dropped": []
+    }
+  },
+  "sample-vector-fill-stroke-1": {
+    "style.cs.json": {
+      "image": "sample-vector-fill-stroke-1/style.png",
+      "assumed": [],
+      "dropped": []
+    }
+  },
+  "sample-vector-graphics-1": {
+    "style.cs.json": {
+      "image": "sample-vector-graphics-1/style.png",
+      "assumed": [
+        "rule: Graphic.position y read as downwards, like screen coordinates"
+      ],
+      "dropped": []
+    }
+  },
+  "sample-vector-marker-1": {
+    "style.cs.json": {
+      "image": "sample-vector-marker-1/style.png",
+      "assumed": [],
+      "dropped": []
+    }
+  },
+  "sample-vector-text-1": {
+    "style.cs.json": {
+      "image": "sample-vector-text-1/style.png",
+      "assumed": [
+        "rule: Text.position y read as downwards, like screen coordinates"
+      ],
+      "dropped": [
+        "rule: Text.alignment not carried over not carried over"
+      ]
+    }
+  },
+  "sample-vector-units-1": {
+    "style.cs.json": {
+      "image": "sample-vector-units-1/style.png",
+      "assumed": [],
+      "dropped": []
+    }
+  },
+  "sun-azimuth": {
+    "style.cs.json": {
+      "image": "sun-azimuth/style.png",
+      "assumed": [
+        "coverage: colorMap interpolated linearly, clamped beyond its ends (the draft leaves it open)",
+        "coverage: hillShading.sun.azimuth read clockwise from north"
+      ],
+      "dropped": [
+        "coverage: hillShading.factor not carried over (the draft does not define its scale)"
+      ]
+    }
+  },
+  "z-order": {
+    "style.cs.json": {
+      "image": "z-order/style.png",
+      "assumed": [],
+      "dropped": []
+    }
+  }
+}

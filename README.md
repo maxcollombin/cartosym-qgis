@@ -30,14 +30,13 @@ carrying the merged symbolizer. `viz.sd` becomes the rule's scale range.
 
 ## Readings of open requirements
 
-Where the draft leaves a behaviour open, the choice is an option:
-`--casing-width total|extra` (is the casing width the whole band, or the part
-beyond each side of the stroke) and `--casing-pass all-first|with-feature`
-(every casing before any stroke, or each feature's casing with its own stroke).
-`--hatch-angle clockwise|counter-clockwise`, `--dash-units px|stroke-width`,
-`--outline-unit px|pt` and `--outline-extent outward|centered` (QGIS draws a font
-outline as a stroke centred on the glyph contour, so `outward` doubles the size).
-Other assumptions are listed on stderr as `assumed:`.
+Where the draft leaves a behaviour open there is one fixed reading, listed as `assumed:` on
+stderr when it applies: a casing `width` is the whole band, drawn beneath the stroke with every
+casing before any stroke; hatch angles turn clockwise from the x axis; `dashPattern` values and a
+font outline's `size` are px; the outline extends outward by `size`; a dot or stipple point is a
+1 px square in the fill colour; a `colorMap` is interpolated linearly and clamped; `pc` in a
+`hotSpot` is a percentage; `position` and `Text.position` read `y` downwards. A style that needs
+another reading says so in its own values (see `docs/kit-comparison.md`).
 
 ## Supported so far
 
@@ -53,7 +52,11 @@ and `opacityMap` on the 0..1 intensity). `colorMap` is interpolated linearly and
 from north; all three are listed as `assumed`. `hillShading.factor` is not carried over: the
 draft does not say what it scales.
 
-Not yet: `Dot` and shapes as fill patterns, `tint`/`blackTint`/`alphaThreshold`, `Text` position and alignment, coverages, `viz.pass`, time conditions.
+Gradient fills (linear, radial, conical, across the feature's bounding box), `dashOffset`,
+widths and label priorities given as expressions, `zOrder`, `Text` of a marker as a label that is
+never left out. CS-JSON is read as it is (not validated), so draft proposals render.
+
+Not yet: a gradient `type` given by a property, `Text.alignment`, the default marker, `Dot` and shapes as fill patterns, `tint`/`blackTint`/`alphaThreshold`, `Text` position and alignment, coverages, `viz.pass`, time conditions.
 
 Dots of a dot pattern or stipple are 1 px squares in the fill colour (the draft
 leaves their size and colour open). A stipple scatters `ratio * area` dots at
@@ -62,3 +65,9 @@ stays below `ratio`.
 
 Relative image paths start in the style file's folder. An `Image` is drawn at its
 own size; `pc` in a `hotSpot` is read as a percentage of the image.
+
+## Tools
+
+`tools/run_kits.py`, `tools/extract_gallery.py` and `tools/compare.py` render every kit of a
+`gallery/kit` folder and put the result next to the draft renderer's variants; see
+[`docs/kit-comparison.md`](docs/kit-comparison.md) for what they showed.

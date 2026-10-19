@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 from pycartosym.parser import CartoSymParser
-from qgis.core import Qgis
+from qgis.core import Qgis, QgsPalLayerSettings
 from qgis.PyQt.QtGui import QColor, QImage
 
 from cartosym_qgis import build_renderer, to_qml
@@ -120,24 +120,7 @@ def test_casing_below_and_center_above():
     assert layers == [(2.0, "#000000"), (4.0, "#ffffff"), (1.0, "#ff0000")]
 
 
-def test_casing_width_extra_extends_beyond_each_side():
-    from cartosym_qgis.symbols import Options
-    _, layers = _layers(Options(casing_width="extra"))
-    assert layers[0] == (8.0, "#000000")  # 4 + 2 * 2
 
-
-def test_casing_pass_selects_symbol_levels():
-    from cartosym_qgis.symbols import Options
-    assert _layers()[0].usingSymbolLevels()
-    assert not _layers(Options(casing_pass="with-feature"))[0].usingSymbolLevels()
-
-
-def test_rendering_passes_only_for_all_first():
-    from cartosym_qgis.symbols import Options
-    for options, passes in ((Options(), [0, 1, 2]), (Options(casing_pass="with-feature"), [0, 0, 0])):
-        renderer, _ = build_renderer(ROADS, "line", options=options)
-        symbol = renderer.rootRule().children()[0].symbol()
-        assert [l.renderingPass() for l in symbol.symbolLayers()] == passes
 
 
 def test_assumption_is_reported_separately():
@@ -162,19 +145,6 @@ def test_hatch_values_and_defaults():
     assert default.lineAngle() == -45.0  # clockwise, QGIS turns counter-clockwise
 
 
-def test_hatch_angle_direction_option():
-    from cartosym_qgis.symbols import Options
-    layer, _keep = _hatch_layer({"angle": 30}, Options(hatch_angle="counter-clockwise"))
-    assert layer.lineAngle() == 30.0
-
-
-def test_dash_units_option():
-    from cartosym_qgis.symbols import Options
-    style = {"stylingRules": [{"symbolizer": {"stroke": {"width": {"px": 3}, "dashPattern": [2, 1]}}}]}
-    for units, vector in (("px", [2.0, 1.0]), ("stroke-width", [6.0, 3.0])):
-        renderer, _ = build_renderer(style, "line", options=Options(dash_units=units))
-        layer = renderer.rootRule().children()[0].symbol().symbolLayer(0)
-        assert list(layer.customDashVector()) == vector
 
 
 LABEL_STYLE = {"stylingRules": [{"symbolizer": {"label": {"elements": [{
@@ -201,14 +171,6 @@ def test_text_label_with_font_outline():
     assert buffer.enabled() and buffer.color().name() == "#ffffff"
     assert buffer.opacity() == 0.75
 
-
-def test_font_outline_extent_option():
-    from cartosym_qgis.symbols import Options
-    outward, _k1 = _label()
-    centered, _k2 = _label(Options(outline_extent="centered"))
-    # QGIS draws a stroke centred on the contour: half of it shows outside
-    assert outward.format().buffer().size() == 6.0
-    assert centered.format().buffer().size() == 3.0
 
 
 def test_label_in_qml():
@@ -292,3 +254,60 @@ def test_image_fill_pattern_is_tiled():
     style = {"stylingRules": [{"symbolizer": {"fill": {"pattern": {"type": "Image", "image": {"path": "tree.png"}}}}}]}
     symbol, _keep = _first_symbol(style, "polygon")
     assert symbol.symbolLayer(0).layerType() == "RasterFill"
+
+
+def _sym(symbolizer, geometry="polygon"):
+    renderer, report = build_renderer({"stylingRules": [{"symbolizer": symbolizer}]}, geometry)
+    return renderer.rootRule().children()[0].symbol(), (renderer, report)
+
+
+def test_gradient_fill_follows_the_css_angle():
+    key = lambda c, p=None: {"color": c} if p is None else {"color": c, "percent": p}
+    symbol, _keep = _sym({"fill": {"gradient": {"type": "linear", "angle": 90, "keys": [key("red"), key("blue", 1)]}}})
+    layer = symbol.symbolLayer(0)
+    assert layer.layerType() == "GradientFill"
+    # 90 degrees = towards the right: from the left edge to the right edge
+    assert (layer.referencePoint1().x(), layer.referencePoint2().x()) == (0.0, 1.0)
+
+
+def test_dash_offset_and_expression_width():
+    symbol, _keep = _sym({"stroke": {"dashPattern": [4, 2], "dashOffset": {"px": 3},
+                                     "width": {"op": "*", "args": [{"property": "lanes"}, 2]}}}, "line")
+    layer = symbol.symbolLayer(0)
+    assert layer.dashPatternOffset() == 3.0
+    assert 'lanes' in layer.dataDefinedProperties().property(layer.Property.StrokeWidth).expressionString()
+
+
+def test_dot_is_drawn_with_its_stroke():
+    symbol, _keep = _sym({"marker": {"elements": [{"type": "Dot", "stroke": {"width": {"px": 6}, "color": "red"}}]}}, "point")
+    layer = symbol.symbolLayer(0)
+    assert (layer.size(), layer.color().name()) == (6.0, "#ff0000")
+
+
+def test_text_marker_is_a_label_that_is_never_left_out():
+    from cartosym_qgis.renderer import build
+    style = {"stylingRules": [{"symbolizer": {"marker": {"elements": [{"type": "Text", "text": "Oslo"}]}}}]}
+    renderer, labeling, _ = build(style, "point")
+    settings = labeling.rootRule().children()[0].settings()
+    assert settings.displayAll and settings.isExpression
+    assert renderer.rootRule().children()  # an invisible symbol, so QGIS labels the features
+
+
+def test_label_offset_spacing_and_priority_expression():
+    from cartosym_qgis.renderer import build
+    style = {"stylingRules": [{"symbolizer": {"label": {
+        "elements": [{"type": "Text", "text": {"property": "n"}, "position": [{"px": 5}, {"px": 12}]}],
+        "placement": {"minSpacing": {"px": 60}, "priority": {"property": "rank"}}}}}]}
+    _r, labeling, _ = build(style, "line")
+    settings = labeling.rootRule().children()[0].settings()
+    assert (settings.xOffset, settings.yOffset, settings.repeatDistance) == (5.0, 12.0, 60.0)
+    assert settings.dataDefinedProperties().isActive(QgsPalLayerSettings.Property.Priority)
+
+
+def test_inline_image_and_raw_csjson(tmp_path):
+    from cartosym_qgis.markers import resolve
+    svg = "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2210%22%20height%3D%2210%22/%3E"
+    assert resolve({"path": svg}, None).suffix == ".svg"
+    from cartosym_qgis.renderer import load_style
+    (tmp_path / "s.cs.json").write_text('{"stylingRules": [{"symbolizer": {"gamma": 2}}]}')
+    assert load_style(tmp_path / "s.cs.json")["stylingRules"][0]["symbolizer"] == {"gamma": 2}  # not validated

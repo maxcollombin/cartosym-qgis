@@ -11,6 +11,26 @@ from .symbols import Options
 _GEOMETRY = {0: "point", 1: "line", 2: "polygon"}
 
 
+def _layer_z(style: dict, layer_id: str) -> int:
+    """The ``zOrder`` of the rules that select *layer_id* (0 if none sets one)."""
+    from .expressions import analyse
+
+    def walk(rule: dict) -> int | None:
+        z = (rule.get("symbolizer") or {}).get("zOrder")
+        if isinstance(z, (int, float)):
+            return int(z)
+        for child in rule.get("nestedRules", []):
+            if (found := walk(child)) is not None:
+                return found
+        return None
+
+    for rule in style.get("stylingRules", []):
+        if layer_id in analyse(rule.get("selector")).layer_ids:
+            if (z := walk(rule)) is not None:
+                return z
+    return 0
+
+
 def render_kit(kit_dir: str | Path, style_file: str | Path, out: str | Path, options: Options) -> Report:
     """Draw every layer of the kit with the style, at the kit's extent, size and scale."""
     from qgis.core import QgsCoordinateReferenceSystem, QgsMapRendererParallelJob, QgsMapSettings, QgsRectangle, QgsVectorLayer
@@ -26,7 +46,9 @@ def render_kit(kit_dir: str | Path, style_file: str | Path, out: str | Path, opt
     report = Report()
     layers = []  # bottom first
     keep = []  # temporary files and renderers must outlive the render
-    for entry in view["layers"]:
+    # zOrder orders the layers too: a higher one is drawn later (stable for equal values)
+    entries = sorted(view["layers"], key=lambda e: _layer_z(style, e["id"]))
+    for entry in entries:
         layer_id = entry["id"]
         if entry["type"] == "coverage":
             bands = {p.name[len(layer_id) + 1 : -4]: p for p in sorted(kit.glob(f"{layer_id}.*.asc"))}

@@ -12,7 +12,7 @@ from qgis.core import QgsRuleBasedLabeling, QgsRuleBasedRenderer
 
 from . import expressions
 from .labels import label_settings
-from .symbols import LINE, POINT, POLYGON, Options, build_symbol
+from .symbols import LINE, POINT, POLYGON, Options, build_symbol, invisible_symbol
 from .units import Unsupported
 
 _DIMENSION = {"point": POINT, "line": LINE, "polygon": POLYGON}
@@ -37,17 +37,18 @@ class Report:
 
 
 def load_style(path: str | Path) -> dict[str, Any]:
-    """Read a ``.cscss`` or CS-JSON file into the ``Style.to_dict()`` shape."""
-    from pycartosym.models import Style
+    """Read a style as a dict: a ``.cscss`` through pycartosym, CS-JSON as it is.
+
+    CS-JSON is not validated, so a style using a property the model does not
+    know yet (a draft proposal, a vendor extension) still renders.
+    """
     from pycartosym.parser import CartoSymParser
 
     path = Path(path)
     text = path.read_text(encoding="utf-8")
     if path.suffix.lower() == ".cscss":
-        style = CartoSymParser().parse_string_to_pydantic(text)
-    else:
-        style = Style.from_dict(json.loads(text))
-    return style.to_dict()
+        return CartoSymParser().parse_string_to_pydantic(text).to_dict()
+    return json.loads(text)
 
 
 def _merge(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
@@ -156,7 +157,9 @@ def build(
                 symbol = build_symbol(merged, dimension, notes, options)
                 terms = _cell_filter(chosen, groups, truth)
                 scale = (int(low), 0 if high == float("inf") else int(high))
-                for settings in label_settings(merged.get("label") or {}, dimension, notes, options):
+                texts = label_settings(merged.get("label") or {}, dimension, notes, options)
+                texts += label_settings(merged.get("marker") or {}, dimension, notes, options, always=True)
+                for settings in texts:
                     label_root.appendChild(
                         QgsRuleBasedLabeling.Rule(
                             settings, scale[1], scale[0], " AND ".join(terms)
@@ -164,6 +167,8 @@ def build(
                     )
                 for note in notes:
                     report.note(active[-1].name, note)
+                if symbol is None and texts:
+                    symbol = invisible_symbol(dimension)
                 if symbol is None:
                     continue
                 root.appendChild(
@@ -178,8 +183,9 @@ def build(
     report.dropped = list(dict.fromkeys(report.dropped))
     report.assumed = list(dict.fromkeys(report.assumed))
     renderer = QgsRuleBasedRenderer(root)
-    # Symbol levels draw layer 0 of every feature, then layer 1, ...: all casings first.
-    renderer.setUsingSymbolLevels(options.casing_pass == "all-first")
+    # Symbol levels draw layer 0 of every feature, then layer 1, ...: all casings
+    # before any stroke, so crossings merge.
+    renderer.setUsingSymbolLevels(True)
     return renderer, QgsRuleBasedLabeling(label_root), report
 
 

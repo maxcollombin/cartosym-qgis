@@ -21,11 +21,37 @@ from .units import Unsupported, color, length
 _DEFAULT_IMAGE_SIZE = 16.0  # px, when the image cannot be measured
 
 
+_DATA_DIR: list[Path] = []  # decoded data: URIs, kept for the life of the process
+
+
+def _from_data_uri(uri: str) -> Path | None:
+    """Write an inline ``data:`` image to a file QGIS can read."""
+    import base64
+    import tempfile
+    from urllib.parse import unquote_to_bytes
+
+    header, _, payload = uri.partition(",")
+    media = header[5:].split(";")[0]
+    suffix = {"image/svg+xml": ".svg", "image/png": ".png", "image/jpeg": ".jpg"}.get(media)
+    if suffix is None:
+        return None
+    data = base64.b64decode(payload) if header.endswith(";base64") else unquote_to_bytes(payload)
+    if not _DATA_DIR:
+        _DATA_DIR.append(Path(tempfile.mkdtemp(prefix="cartosym-qgis-images-")))
+    path = _DATA_DIR[0] / f"{len(list(_DATA_DIR[0].iterdir()))}{suffix}"
+    path.write_bytes(data)
+    return path
+
+
 def resolve(image: dict[str, Any], base_dir: Path | None) -> Path | None:
-    """The file of an image resource (``path``, else a local ``uri``), if it exists."""
+    """The file of an image resource (``path``, else a ``uri``), if it exists."""
     for key in ("path", "uri"):
         value = image.get(key)
-        if not isinstance(value, str) or "://" in value:
+        if not isinstance(value, str):
+            continue
+        if value.startswith("data:"):
+            return _from_data_uri(value)
+        if "://" in value:
             continue
         path = Path(value)
         if not path.is_absolute() and base_dir is not None:
@@ -86,6 +112,8 @@ def graphic_layer(element: dict[str, Any], notes: list[str], base_dir: Path | No
         layer = _dot(element, notes)
     elif kind == "Image":
         layer = _image(element, notes, base_dir)
+    elif kind == "Text":
+        return None  # drawn as a label (see labels.py), not as a marker symbol layer
     else:
         notes.append(f"graphic {kind!r}")
         return None
@@ -95,16 +123,20 @@ def graphic_layer(element: dict[str, Any], notes: list[str], base_dir: Path | No
 
 
 def _dot(element: dict[str, Any], notes: list[str]) -> QgsSimpleMarkerSymbolLayer:
+    """A ``Dot``: ``size`` and ``color``, or the ``stroke`` it is drawn with (width = diameter)."""
+    stroke = element.get("stroke") or {}
     size, unit = 10.0, Qgis.RenderUnit.Pixels  # the draft's default Dot: white, 10 px
     try:
         if "size" in element:
             size, unit = length(element["size"])
+        elif "width" in stroke:
+            size, unit = length(stroke["width"])
     except Unsupported as exc:
         notes.append(f"Dot.size: {exc}")
     layer = QgsSimpleMarkerSymbolLayer(QgsSimpleMarkerSymbolLayerBase.Shape.Circle, size)
     layer.setSizeUnit(unit)
     try:
-        layer.setColor(color(element.get("color", "white"), element.get("opacity")))
+        layer.setColor(color(element.get("color", stroke.get("color", "white")), element.get("opacity")))
     except Unsupported as exc:
         notes.append(f"Dot.color: {exc}")
     layer.setStrokeStyle(Qt.NoPen)
